@@ -1,12 +1,31 @@
 # FlyLaTeX Whiteboard
 This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with some modifications to make it work with FlyLaTeX.
 
-Modifications:
+## Modifications
 
 - Adds support for the `flylatex` theme.
 - Change default context to `/app`.
 - Integration with FlyLaTeX.
 - Change some Label to `flylatex`.
+
+## Build
+
+First Step:
+
+build the product with flow commands:
+```bash
+yarn install
+yarn build
+```
+
+Second Step:
+
+copy the build folder to the flylatex server and build the docker image.
+
+```shell
+sudo docker build -t your-docker-image-hub/excalidraw .
+```
+
 
 ## Excalidraw
 
