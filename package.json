@@ -57,7 +57,8 @@
   "engines": {
     "node": "18.0.0 - 20.x.x"
   },
-  "homepage": "/app",
+  "homepage": ".",
+  "license": "MIT",
   "prettier": "@excalidraw/prettier-config",
   "scripts": {
     "build-node": "node ./scripts/build-node.js",

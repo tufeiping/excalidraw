@@ -1,3 +1,15 @@
+# FlyLaTeX Whiteboard
+This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with some modifications to make it work with FlyLaTeX.
+
+Modifications:
+
+- Adds support for the `flylatex` theme.
+- Change default context to `/app`.
+- Integration with FlyLaTeX.
+- Change some Label to `flylatex`.
+
+## Excalidraw
+
 <a href="https://excalidraw.com/" target="_blank" rel="noopener">
   <picture>
     <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />
