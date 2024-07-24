@@ -46,7 +46,7 @@ import {
 } from "../packages/excalidraw/utils";
 import {
   FIREBASE_STORAGE_PREFIXES,
-  isExcalidrawPlusSignedUser,
+  // isExcalidrawPlusSignedUser,
   STORAGE_KEYS,
   SYNC_BROWSER_TABS_TIMEOUT,
 } from "./app_constants";
@@ -109,14 +109,14 @@ import {
   DEFAULT_CATEGORIES,
 } from "../packages/excalidraw/components/CommandPalette/CommandPalette";
 import {
-  GithubIcon,
-  XBrandIcon,
-  DiscordIcon,
-  ExcalLogo,
+  // GithubIcon,
+  // XBrandIcon,
+  // DiscordIcon,
+  // ExcalLogo,
   usersIcon,
   exportToPlus,
   share,
-  youtubeIcon,
+  // youtubeIcon,
 } from "../packages/excalidraw/components/icons";
 import { appThemeAtom, useHandleAppTheme } from "./useHandleAppTheme";
 import { getPreferredLanguage } from "./app-language/language-detector";
@@ -707,44 +707,44 @@ const ExcalidrawWrapper = () => {
     );
   }
 
-  const ExcalidrawPlusCommand = {
-    label: "Excalidraw+",
-    category: DEFAULT_CATEGORIES.links,
-    predicate: true,
-    icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
-    keywords: ["plus", "cloud", "server"],
-    perform: () => {
-      window.open(
-        `${
-          import.meta.env.VITE_APP_PLUS_LP
-        }/plus?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
-        "_blank",
-      );
-    },
-  };
-  const ExcalidrawPlusAppCommand = {
-    label: "Sign up",
-    category: DEFAULT_CATEGORIES.links,
-    predicate: true,
-    icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
-    keywords: [
-      "excalidraw",
-      "plus",
-      "cloud",
-      "server",
-      "signin",
-      "login",
-      "signup",
-    ],
-    perform: () => {
-      window.open(
-        `${
-          import.meta.env.VITE_APP_PLUS_APP
-        }?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
-        "_blank",
-      );
-    },
-  };
+  // const ExcalidrawPlusCommand = {
+  //   label: "Excalidraw+",
+  //   category: DEFAULT_CATEGORIES.links,
+  //   predicate: true,
+  //   icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
+  //   keywords: ["plus", "cloud", "server"],
+  //   perform: () => {
+  //     window.open(
+  //       `${
+  //         import.meta.env.VITE_APP_PLUS_LP
+  //       }/plus?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
+  //       "_blank",
+  //     );
+  //   },
+  // };
+  // const ExcalidrawPlusAppCommand = {
+  //   label: "Sign up",
+  //   category: DEFAULT_CATEGORIES.links,
+  //   predicate: true,
+  //   icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
+  //   keywords: [
+  //     "excalidraw",
+  //     "plus",
+  //     "cloud",
+  //     "server",
+  //     "signin",
+  //     "login",
+  //     "signup",
+  //   ],
+  //   perform: () => {
+  //     window.open(
+  //       `${
+  //         import.meta.env.VITE_APP_PLUS_APP
+  //       }?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
+  //       "_blank",
+  //     );
+  //   },
+  // };
 
   return (
     <div
@@ -1006,6 +1006,7 @@ const ExcalidrawWrapper = () => {
                 setShareDialogState({ isOpen: true, type: "share" });
               },
             },
+            /**
             {
               label: "GitHub",
               icon: GithubIcon,
@@ -1080,15 +1081,15 @@ const ExcalidrawWrapper = () => {
                   "noopener noreferrer",
                 );
               },
-            },
-            ...(isExcalidrawPlusSignedUser
-              ? [
-                  {
-                    ...ExcalidrawPlusAppCommand,
-                    label: "Sign in / Go to Excalidraw+",
-                  },
-                ]
-              : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
+            }, */
+            // ...(isExcalidrawPlusSignedUser
+            //   ? [
+            //       {
+            //         ...ExcalidrawPlusAppCommand,
+            //         label: "Sign in / Go to Excalidraw+",
+            //       },
+            //     ]
+            //   : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
 
             {
               label: t("overwriteConfirm.action.excalidrawPlus.button"),
