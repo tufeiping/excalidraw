@@ -35,7 +35,7 @@ sudo docker build -t your-docker-image-hub/excalidraw .
 <a href="https://excalidraw.com/" target="_blank" rel="noopener">
   <picture>
     <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />
-    <img alt="Excalidraw" src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2.png" />
+    <img alt="Excalidraw" src="./excalidraw_github_cover_2_dark.png" />
   </picture>
 </a>
 
@@ -76,7 +76,7 @@ sudo docker build -t your-docker-image-hub/excalidraw .
 <div align="center">
   <figure>
     <a href="https://excalidraw.com" target="_blank" rel="noopener">
-      <img src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github%2Fproduct_showcase.png" alt="Product showcase" />
+      <img src="./github_product_showcase.png" alt="Product showcase" />
     </a>
     <figcaption>
       <p align="center">
