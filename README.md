@@ -1,5 +1,8 @@
 # FlyLaTeX Whiteboard
-This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with some modifications to make it work with FlyLaTeX.
+
+<img src="./blue.png"/>
+
+This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with some modifications to make it work with `FlyLaTeX`.
 
 ## Modifications
 
