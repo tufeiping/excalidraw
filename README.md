@@ -29,6 +29,8 @@ copy the build folder to the flylatex server and build the docker image.
 sudo docker build -t your-docker-image-hub/excalidraw .
 ```
 
+>[!IMPORTANT]
+> This project is one part of FlyLaTeX.
 
 ## Excalidraw
 
