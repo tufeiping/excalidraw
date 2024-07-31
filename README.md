@@ -10,6 +10,7 @@ This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with so
 - Change default context to `/app`.
 - Integration with FlyLaTeX.
 - Change some Label to `flylatex`.
+- UI default language is `zh-CN`.
 
 ## Build
 
@@ -17,7 +18,7 @@ First Step:
 
 build the product with flow commands:
 ```bash
-yarn install
+yarn
 yarn build
 ```
 
@@ -27,6 +28,29 @@ copy the build folder to the flylatex server and build the docker image.
 
 ```shell
 sudo docker build -t your-docker-image-hub/excalidraw .
+```
+
+## Node Version Range
+
+Node version must in [18.17-20.x] range.
+
+<img src="./node-version.png"/>
+
+Build failed when node version out of range.
+
+```shell
+excalidraw-monorepo@: The engine "node" is incompatible with this module. Expected version "18.0.0 - 20.x.x". Got "22.5.1"
+
+next@14.1.4: The engine "node" is incompatible with this module. Expected version ">=18.17.0". Got "18.8.0"
+```
+
+Recommend to use node version **18.17.1**.
+
+#### Tips
+
+set the proxy:
+```shell
+yarn config set https-proxy http://ip:port
 ```
 
 >[!IMPORTANT]
