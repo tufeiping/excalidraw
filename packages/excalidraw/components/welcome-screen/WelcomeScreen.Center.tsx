@@ -5,7 +5,7 @@ import { useDevice, useExcalidrawActionManager } from "../App";
 import { useTunnels } from "../../context/tunnels";
 import { HelpIcon, LoadIcon, usersIcon } from "../icons";
 import { useUIAppState } from "../../context/ui-appState";
-import { ExcalidrawLogo } from "../ExcalidrawLogo";
+// import { ExcalidrawLogo } from "../ExcalidrawLogo";
 
 const WelcomeScreenMenuItemContent = ({
   icon,
