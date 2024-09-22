@@ -12,6 +12,7 @@ import { Paragraph } from "./Paragraph";
 import "./MagicSettings.scss";
 import TTDDialogTabs from "./TTDDialog/TTDDialogTabs";
 import { TTDDialogTab } from "./TTDDialog/TTDDialogTab";
+import { Button } from "./Button";
 
 export const MagicSettings = (props: {
   openAIKey: string | null;
@@ -28,7 +29,8 @@ export const MagicSettings = (props: {
   const appState = useUIAppState();
 
   const onConfirm = () => {
-    props.onConfirm(keyInputValue.trim(), shouldPersist);
+    setShouldPersist(true);
+    props.onConfirm(keyInputValue.trim(), true);
   };
 
   if (appState.openDialog?.name !== "settings") {
@@ -43,7 +45,7 @@ export const MagicSettings = (props: {
       }}
       title={
         <div style={{ display: "flex" }}>
-          Wireframe to Code (AI){" "}
+          线框图转代码 (AI){" "}
           <div
             style={{
               display: "flex",
@@ -57,7 +59,7 @@ export const MagicSettings = (props: {
               color: "var(--color-surface-lowest)",
             }}
           >
-            Experimental
+            实验性
           </div>
         </div>
       }
@@ -71,58 +73,56 @@ export const MagicSettings = (props: {
           paddingLeft: "2.5rem",
         }}
       >
-        AI Settings
+        AI 设置
       </h2> */}
       <TTDDialogTabs dialog="settings" tab={appState.openDialog.tab}>
         {/* <TTDDialogTabTriggers>
           <TTDDialogTabTrigger tab="text-to-diagram">
-            <InlineIcon icon={brainIcon} /> Text to diagram
+            <InlineIcon icon={brainIcon} /> 文本转图表
           </TTDDialogTabTrigger>
           <TTDDialogTabTrigger tab="diagram-to-code">
-            <InlineIcon icon={MagicIcon} /> Wireframe to code
+            <InlineIcon icon={MagicIcon} /> 线框图转代码
           </TTDDialogTabTrigger>
         </TTDDialogTabTriggers> */}
         {/* <TTDDialogTab className="ttd-dialog-content" tab="text-to-diagram">
-          TODO
+          待办
         </TTDDialogTab> */}
         <TTDDialogTab
           //  className="ttd-dialog-content"
           tab="diagram-to-code"
         >
           <Paragraph>
-            For the diagram-to-code feature we use{" "}
-            <InlineIcon icon={OpenAIIcon} />
-            OpenAI.
+            对于线框图转代码功能，我们使用
+            {/* <InlineIcon icon={OpenAIIcon} /> */}
+            DeepSeek服务。
           </Paragraph>
           <Paragraph>
-            While the OpenAI API is in beta, its use is strictly limited — as
-            such we require you use your own API key. You can create an{" "}
+            DeepSeek 是国内性价比比较高的AI服务，您可以创建一个
             <a
-              href="https://platform.openai.com/login?launch"
+              href="https://platform.deepseek.com/"
               rel="noopener noreferrer"
               target="_blank"
             >
-              OpenAI account
+              DeepSeek 账户
             </a>
-            , add a small credit (5 USD minimum), and{" "}
+            ，可以充值10元，并
             <a
-              href="https://platform.openai.com/api-keys"
+              href="https://platform.deepseek.com/api_keys"
               rel="noopener noreferrer"
               target="_blank"
             >
-              generate your own API key
+              生成您自己的 API 密钥
             </a>
-            .
+            。
           </Paragraph>
           <Paragraph>
-            Your OpenAI key does not leave the browser, and you can also set
-            your own limit in your OpenAI account dashboard if needed.
+            您的 DeepSeek 密钥不会离开浏览器，您还可以根据需要在 DeepSeek 账户仪表板中设置自己的限制。
           </Paragraph>
           <TextField
             isRedacted
             value={keyInputValue}
-            placeholder="Paste your API key here"
-            label="OpenAI API key"
+            placeholder="在此粘贴您的 API 密钥"
+            label="DeepSeek API 密钥"
             onChange={(value) => {
               setKeyInputValue(value);
               props.onChange(value.trim(), shouldPersist);
@@ -131,26 +131,35 @@ export const MagicSettings = (props: {
             onKeyDown={(event) => event.key === KEYS.ENTER && onConfirm()}
           />
           <Paragraph>
-            By default, your API token is not persisted anywhere so you'll need
-            to insert it again after reload. But, you can persist locally in
-            your browser below.
+            默认情况下，您的 API 仅存在浏览器缓存中，您可以点击下面按钮随时清理缓存的 KEY。
           </Paragraph>
 
-          <CheckboxItem checked={shouldPersist} onChange={setShouldPersist}>
-            Persist API key in browser storage
-          </CheckboxItem>
+          {/* <CheckboxItem checked={shouldPersist} onChange={setShouldPersist}>
+            在浏览器存储中持久化 API 密钥
+          </CheckboxItem> */}
+
+          <FilledButton
+            className="MagicSettings__confirm"
+            size="medium"
+            label="清除浏览器缓存的 API KEY"
+            onClick={() => {
+              setKeyInputValue("");
+              localStorage.removeItem("excalidraw-oai-api-key");
+            }}
+          />
 
           <Paragraph>
-            Once API key is set, you can use the <InlineIcon icon={MagicIcon} />{" "}
-            tool to wrap your elements in a frame that will then allow you to
-            turn it into code. This dialog can be accessed using the{" "}
-            <b>AI Settings</b> <InlineIcon icon={OpenAIIcon} />.
+            设置 API 密钥后，您可以使用 <InlineIcon icon={MagicIcon} /> {"\n"}
+            工具将您的元素包装在一个框架中，然后将其转换为代码。此对话框可以通过{" "}
+            <b>AI 设置</b>
+            {/* <InlineIcon icon={OpenAIIcon} /> */}
+            访问。
           </Paragraph>
 
           <FilledButton
             className="MagicSettings__confirm"
             size="large"
-            label="Confirm"
+            label="确认"
             onClick={onConfirm}
           />
         </TTDDialogTab>

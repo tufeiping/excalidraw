@@ -307,11 +307,11 @@ const initializeScene = async (opts: {
   } else if (scene) {
     return isExternalScene && jsonBackendMatch
       ? {
-          scene,
-          isExternalScene,
-          id: jsonBackendMatch[1],
-          key: jsonBackendMatch[2],
-        }
+        scene,
+        isExternalScene,
+        id: jsonBackendMatch[1],
+        key: jsonBackendMatch[2],
+      }
       : { scene, isExternalScene: false };
   }
   return { scene: null, isExternalScene: false };
@@ -746,6 +746,11 @@ const ExcalidrawWrapper = () => {
   //   },
   // };
 
+  const extractMermaidContent = (response: string): string | undefined => {
+    const mermaidMatch = response.match(/```mermaid\s*([\s\S]*?)\s*```/);
+    return mermaidMatch ? mermaidMatch[1].trim() : undefined;
+  };
+
   return (
     <div
       style={{ height: "100%" }}
@@ -766,27 +771,27 @@ const ExcalidrawWrapper = () => {
               onExportToBackend,
               renderCustomUI: excalidrawAPI
                 ? (elements, appState, files) => {
-                    return (
-                      <ExportToExcalidrawPlus
-                        elements={elements}
-                        appState={appState}
-                        files={files}
-                        name={excalidrawAPI.getName()}
-                        onError={(error) => {
-                          excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
-                          });
-                        }}
-                        onSuccess={() => {
-                          excalidrawAPI.updateScene({
-                            appState: { openDialog: null },
-                          });
-                        }}
-                      />
-                    );
-                  }
+                  return (
+                    <ExportToExcalidrawPlus
+                      elements={elements}
+                      appState={appState}
+                      files={files}
+                      name={excalidrawAPI.getName()}
+                      onError={(error) => {
+                        excalidrawAPI?.updateScene({
+                          appState: {
+                            errorMessage: error.message,
+                          },
+                        });
+                      }}
+                      onSuccess={() => {
+                        excalidrawAPI.updateScene({
+                          appState: { openDialog: null },
+                        });
+                      }}
+                    />
+                  );
+                }
                 : undefined,
             },
           },
@@ -848,32 +853,42 @@ const ExcalidrawWrapper = () => {
         <AppFooter />
         <TTDDialog
           onTextSubmit={async (input) => {
+            let key = localStorage.getItem("excalidraw-oai-api-key");
             try {
-              const response = await fetch(
-                `${
-                  import.meta.env.VITE_APP_AI_BACKEND
-                }/v1/ai/text-to-diagram/generate`,
-                {
-                  method: "POST",
-                  headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({ prompt: input }),
+              if (!key) {
+
+                throw new Error("Please set your API key in the settings");
+              }
+              // if key start " or end with " remove it
+              if (key.startsWith('"') && key.endsWith('"')) {
+                key = key.slice(1, -1);
+              }
+              const url = "https://api.deepseek.com/chat/completions";
+              const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${key}`,
                 },
-              );
+                body: JSON.stringify({
+                  messages: [
+                    {
+                      role: "user",
+                      content: input,
+                    },
+                  ],
+                  model: "deepseek-coder",
+                  steam: false,
+                }),
+              });
 
               const rateLimit = response.headers.has("X-Ratelimit-Limit")
                 ? parseInt(response.headers.get("X-Ratelimit-Limit") || "0", 10)
                 : undefined;
 
-              const rateLimitRemaining = response.headers.has(
-                "X-Ratelimit-Remaining",
-              )
-                ? parseInt(
-                    response.headers.get("X-Ratelimit-Remaining") || "0",
-                    10,
-                  )
+              const rateLimitRemaining = response.headers.has("X-Ratelimit-Remaining")
+                ? parseInt(response.headers.get("X-Ratelimit-Remaining") || "0", 10)
                 : undefined;
 
               const json = await response.json();
@@ -883,23 +898,27 @@ const ExcalidrawWrapper = () => {
                   return {
                     rateLimit,
                     rateLimitRemaining,
-                    error: new Error(
-                      "Too many requests today, please try again tomorrow!",
-                    ),
+                    error: new Error("Too many requests today, please try again tomorrow!"),
                   };
                 }
 
                 throw new Error(json.message || "Generation failed...");
               }
 
-              const generatedResponse = json.generatedResponse;
-              if (!generatedResponse) {
-                throw new Error("Generation failed...");
+              const choices = json.choices;
+              if (choices && choices.length > 0) {
+                const generatedResponse = extractMermaidContent(json.choices[0].message.content);
+                return { generatedResponse, rateLimit, rateLimitRemaining };
               }
 
-              return { generatedResponse, rateLimit, rateLimitRemaining };
+              throw new Error("No response");
             } catch (err: any) {
-              throw new Error("Request failed");
+              return {
+                rateLimit: undefined,
+                rateLimitRemaining: undefined,
+                error: err as Error, // 确保错误类型为 Error
+                generatedResponse: null,
+              };
             }
           }}
         />

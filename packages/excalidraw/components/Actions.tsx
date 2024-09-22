@@ -397,14 +397,14 @@ export const ShapesSwitcher = ({
           </DropdownMenu.Item>
           {app.props.aiEnabled !== false && (
             <>
-              <DropdownMenu.Item
+              {/* <DropdownMenu.Item
                 onSelect={() => app.onMagicframeToolSelect()}
                 icon={MagicIcon}
                 data-testid="toolbar-magicframe"
               >
                 {t("toolBar.magicframe")}
                 <DropdownMenu.Item.Badge>AI</DropdownMenu.Item.Badge>
-              </DropdownMenu.Item>
+              </DropdownMenu.Item> */}
               <DropdownMenu.Item
                 onSelect={() => {
                   trackEvent("ai", "open-settings", "d2c");

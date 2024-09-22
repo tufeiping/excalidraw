@@ -16,6 +16,10 @@ This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with so
 
 First Step:
 
+clone the repository and install the dependencies.
+
+> Important: The node version must in [18.17.1] range.
+
 build the product with flow commands:
 ```bash
 yarn
@@ -50,7 +54,8 @@ Recommend to use node version **18.17.1**.
 
 set the proxy:
 ```shell
-yarn config set https-proxy http://ip:port
+# for example, set the proxy to 7890 port
+yarn config set https-proxy http://127.0.0.1:7890
 ```
 
 >[!IMPORTANT]

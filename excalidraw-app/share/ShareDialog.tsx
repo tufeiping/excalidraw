@@ -213,11 +213,11 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
         />
       </div>
 
-      {props.type === "share" && (
+      {/* {props.type === "share" && (
         <div className="ShareDialog__separator">
           <span>{t("shareDialog.or")}</span>
         </div>
-      )}
+      )} */}
     </>
   ) : null;
 
@@ -225,7 +225,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
     <>
       {startCollabJSX}
 
-      {props.type === "share" && (
+      {/* {props.type === "share" && (
         <>
           <div className="ShareDialog__picker__header">
             {t("exportDialog.link_title")}
@@ -246,7 +246,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
             />
           </div>
         </>
-      )}
+      )} */}
     </>
   );
 };

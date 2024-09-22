@@ -274,16 +274,17 @@ export const TTDDialogBase = withInternalFallback(
           {!("__fallback" in rest) && (
             <TTDDialogTab className="ttd-dialog-content" tab="text-to-diagram">
               <div className="ttd-dialog-desc">
-                Currently we use Mermaid as a middle step, so you'll get best
+                {/* Currently we use Mermaid as a middle step, so you'll get best
                 results if you describe a diagram, workflow, flow chart, and
-                similar.
+                similar. */}
+                目前我们使用 Mermaid 作为中间步骤，因此如果您描述图表、工作流程、流程图等，您将获得最佳结果。
               </div>
               <TTDDialogPanels>
                 <TTDDialogPanel
-                  label={t("labels.prompt")}
+                  label={"提示词 （示例:你是一个 Mermaid 专家，生成一个简单的选择节点的Mermaid表达式，仅仅返回纯粹的表达式，不需要任何解释和多余的内容）"}
                   panelAction={{
                     action: onGenerate,
-                    label: "Generate",
+                    label: "生成",
                     icon: ArrowRightIcon,
                   }}
                   onTextSubmitInProgess={onTextSubmitInProgess}
@@ -333,7 +334,8 @@ export const TTDDialogBase = withInternalFallback(
                             }
                           }}
                         >
-                          View as Mermaid
+                          {/* View as Mermaid */}
+                          查看 Mermaid
                           <InlineIcon icon={ArrowRightIcon} />
                         </div>
                       );
@@ -368,13 +370,13 @@ export const TTDDialogBase = withInternalFallback(
                   />
                 </TTDDialogPanel>
                 <TTDDialogPanel
-                  label="Preview"
+                  label="预览"
                   panelAction={{
                     action: () => {
                       console.info("Panel action clicked");
                       insertToEditor({ app, data });
                     },
-                    label: "Insert",
+                    label: "插入",
                     icon: ArrowRightIcon,
                   }}
                 >
