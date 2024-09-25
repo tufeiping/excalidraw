@@ -6,7 +6,7 @@ const ErrorComp = ({ error }: { error: string }) => {
       data-testid="ttd-dialog-output-error"
       className="ttd-dialog-output-error"
     >
-      Error! <p>{error}</p>
+      错误! <p>{error}</p>
     </div>
   );
 };

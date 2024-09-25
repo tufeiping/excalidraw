@@ -1095,7 +1095,7 @@ class App extends React.Component<AppProps, AppState> {
               if (data.code === "ERR_GENERATION_INTERRUPTED") {
                 message = "Generation was interrupted...";
               } else {
-                message = data.message || "Generation failed";
+                message = data.message || "内容生成失败，请确认API KEY正确";
               }
               src = {
                 intrinsicSize: { w: el.width, h: el.height },
@@ -1118,7 +1118,7 @@ class App extends React.Component<AppProps, AppState> {
                         margin-bottom: 0.5rem;
                       }
                     </style>
-                    <h1>Error!</h1>
+                    <h1>❌错误</h1>
                     <h3>${message}</h3>
                   `);
                 },

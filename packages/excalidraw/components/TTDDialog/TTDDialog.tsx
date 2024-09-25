@@ -123,14 +123,14 @@ export const TTDDialogBase = withInternalFallback(
         if (prompt.length < MIN_PROMPT_LENGTH) {
           setError(
             new Error(
-              `Prompt is too short (min ${MIN_PROMPT_LENGTH} characters)`,
+              `提示词太短 (最小 ${MIN_PROMPT_LENGTH} 字符)`,
             ),
           );
         }
         if (prompt.length > MAX_PROMPT_LENGTH) {
           setError(
             new Error(
-              `Prompt is too long (max ${MAX_PROMPT_LENGTH} characters)`,
+              `提示词太长了 (最大支持 ${MAX_PROMPT_LENGTH} 字符)`,
             ),
           );
         }
@@ -162,7 +162,7 @@ export const TTDDialogBase = withInternalFallback(
           return;
         }
         if (!generatedResponse) {
-          setError(new Error("Generation failed"));
+          setError(new Error("内容生成失败，请确认API KEY正确"));
           return;
         }
 
@@ -187,14 +187,14 @@ export const TTDDialogBase = withInternalFallback(
           trackEvent("ai", "mermaid parse failed", "ttd");
           setError(
             new Error(
-              "Generated an invalid diagram :(. You may also try a different prompt.",
+              "生成的数据格式不正确！您可能需要更改提示词以生成正确的数据格式",
             ),
           );
         }
       } catch (error: any) {
         let message: string | undefined = error.message;
         if (!message || message === "Failed to fetch") {
-          message = "Request failed";
+          message = "请求失败，请检查网络连接及服务";
         }
         setError(new Error(message));
       } finally {
@@ -363,7 +363,7 @@ export const TTDDialogBase = withInternalFallback(
                   <TTDDialogInput
                     onChange={handleTextChange}
                     input={text}
-                    placeholder={"Describe what you want to see..."}
+                    placeholder={"输入您想生成的..."}
                     onKeyboardSubmit={() => {
                       refOnGenerate.current();
                     }}

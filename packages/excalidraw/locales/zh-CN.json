@@ -521,5 +521,20 @@
     "description": "目前仅支持<flowchartLink>流程图</flowchartLink>、<sequenceLink>序列图</sequenceLink>和<classLink>类图</classLink>。其他类型在 Excalidraw 中将以图像呈现。",
     "syntax": "Mermaid 语法",
     "preview": "预览"
+  },
+  "commandPalette": {
+    "title": "命令面板",
+    "shortcuts": {
+      "select": "Select",
+      "confirm": "Confirm",
+      "close": "Close"
+    },
+    "recents": "Recently used",
+    "search": {
+      "placeholder": "Search menus, commands, and discover hidden gems",
+      "noMatch": "No matching commands..."
+    },
+    "itemNotAvailable": "Command is not available...",
+    "shortcutHint": "For Command palette, use {{shortcut}}"
   }
 }

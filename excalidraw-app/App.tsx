@@ -902,7 +902,7 @@ const ExcalidrawWrapper = () => {
                   };
                 }
 
-                throw new Error(json.message || "Generation failed...");
+                throw new Error(json.message || "内容生成失败，请确认API KEY正确");
               }
 
               const choices = json.choices;
