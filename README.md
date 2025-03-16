@@ -31,7 +31,15 @@ Second Step:
 copy the build folder to the flylatex server and build the docker image.
 
 ```shell
-sudo docker build -t your-docker-image-hub/excalidraw .
+sudo docker build -t hub.yonyouaud.com/a8/excalidraw:20250316 .
+```
+
+Third Step:
+
+push docker image to hub.
+
+```shell
+sudo docker push hub.yonyouaud.com/a8/excalidraw:20250316
 ```
 
 ## Node Version Range
@@ -60,6 +68,8 @@ yarn config set https-proxy http://127.0.0.1:7890
 
 >[!IMPORTANT]
 > This project is one part of FlyLaTeX.
+
+> Main app in `excalidraw-app`, you need build it and copy `build` to nginx ROOT directory.
 
 ## Excalidraw
 
