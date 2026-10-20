@@ -863,7 +863,7 @@
     "keyLabel": "DeepSeek API key",
     "keyPlaceholder": "Paste your API key here",
     "clearCached": "Clear the cached API key",
-    "capabilities": "With a key in place, open the AI assistant panel from the menu to edit the canvas in natural language, or use “Text to diagram” in the toolbar to generate a diagram from a prompt or turn a frame into code.",
+    "capabilities": "With a key in place, open the AI assistant panel from the menu and ask for changes in natural language — it can also draw a whole diagram from a Mermaid description. “Mermaid to Excalidraw” in the toolbar needs no key: it converts locally in your browser.",
     "confirm": "Done",
     "accountEnd": "."
   }

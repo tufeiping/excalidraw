@@ -9,12 +9,15 @@
     }
   }
 
-  .MagicSettings-confirm {
-    padding: 0.5rem 1rem;
+  .MagicSettings__confirm {
+    margin-top: 1.5rem;
+    margin-right: auto;
   }
 
-  .MagicSettings__confirm {
-    margin-top: 2rem;
+  // "clear the cached key" is destructive, so it must not look like the
+  // primary action of the dialog
+  .MagicSettings__clear {
+    margin-top: 1rem;
     margin-right: auto;
   }
 }

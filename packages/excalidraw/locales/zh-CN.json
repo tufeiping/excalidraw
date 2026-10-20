@@ -861,7 +861,7 @@
     "keyLabel": "DeepSeek API 密钥",
     "keyPlaceholder": "在此粘贴你的 API 密钥",
     "clearCached": "清除浏览器缓存的 API 密钥",
-    "capabilities": "配置好密钥后，可以从菜单打开右侧的「AI 助手」面板，用自然语言直接编辑画布；工具栏里的「文本转图表」则适合一次性用提示词生成图表，或把画框内容转换成代码。",
+    "capabilities": "配置好密钥后，从菜单打开右侧的「AI 助手」面板，用自然语言直接编辑画布，也可以让它按 Mermaid 描述整块生成图表。工具栏里的「Mermaid 至 Excalidraw」不需要密钥，是在浏览器里本地转换的。",
     "confirm": "确认",
     "accountEnd": "。"
   }

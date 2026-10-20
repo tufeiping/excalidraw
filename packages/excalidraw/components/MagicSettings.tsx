@@ -93,7 +93,9 @@ export const MagicSettings = ({
       />
 
       <FilledButton
-        className="MagicSettings__confirm"
+        className="MagicSettings__clear"
+        variant="outlined"
+        color="muted"
         size="medium"
         label={t("aiSettings.clearCached")}
         onClick={onClear}
