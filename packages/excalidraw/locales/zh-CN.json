@@ -173,7 +173,7 @@
     "selectAllElementsInFrame": "选择画框中的所有元素",
     "removeAllElementsFromFrame": "分离出画框中的所有元素",
     "eyeDropper": "从画布上取色",
-    "textToDiagram": "文字至图表",
+    "textToDiagram": "文本转图表",
     "prompt": "Prompt",
     "followUs": "关注我们",
     "discordChat": "Discord 群组",
@@ -192,8 +192,8 @@
     "preferences": "首选项",
     "preferences_toolLock": "工具锁",
     "boxSelectionMode": "框选依据",
-    "boxSelectionContain": "完全包含",
-    "boxSelectionOverlap": "重叠即选中",
+    "boxSelectionContain": "包含",
+    "boxSelectionOverlap": "重叠",
     "arrowBinding": "箭头绑定",
     "midpointSnapping": "吸附到中点",
     "upgrade": "升级",
@@ -203,7 +203,8 @@
     "showHints": "显示提示",
     "inputDevice": "输入设备",
     "inputDeviceTrackpad": "触控板",
-    "inputDeviceMouse": "鼠标"
+    "inputDeviceMouse": "鼠标",
+    "generate": "AI 生成"
   },
   "elementLink": {
     "title": "链接到对象",

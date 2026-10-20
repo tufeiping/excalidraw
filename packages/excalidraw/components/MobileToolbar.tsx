@@ -346,7 +346,7 @@ export const MobileToolbar = ({ app, setAppState }: MobileToolbarProps) => {
             {t("toolBar.bucketfill")}
           </DropdownMenu.Item>
           <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
-            Generate
+            {t("labels.generate")}
           </div>
           {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
           <DropdownMenu.Item

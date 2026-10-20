@@ -50,6 +50,9 @@
       line-height: 100%;
       user-select: none;
       letter-spacing: 0.4px;
+      // CJK labels break on any character, which turns these pills into
+      // multi-line stacks; the control is a fixed-height row, so never wrap
+      white-space: nowrap;
 
       &:hover {
         color: var(--RadioGroup-choice-color-off-hover);
