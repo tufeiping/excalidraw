@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
-import { clearChat, createChat, loadChat, saveChat } from "./chatStore";
+import {
+  clearChat,
+  createChat,
+  loadChat,
+  nextItemId,
+  saveChat,
+} from "./chatStore";
 import { runAgent } from "./loop";
 import { ToolRegistry } from "./registry";
 import { InMemorySelectionStore } from "./selection";
@@ -17,9 +23,6 @@ import type {
   SceneAccess,
   ToolContext,
 } from "./types";
-
-let itemCounter = 0;
-const nextItemId = () => `item_${++itemCounter}`;
 
 export type AgentStatus = "idle" | "thinking" | "running-tool";
 
@@ -38,6 +41,7 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     reasoning: string;
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const persistTimerRef = useRef<number | null>(null);
 
   const registry = useMemo(() => {
     const instance = new ToolRegistry();
@@ -65,15 +69,41 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     saveChat(chatRef.current, historyRef.current, nextItems);
   }, []);
 
+  const clearPersistTimer = useCallback(() => {
+    if (persistTimerRef.current != null) {
+      window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Persists the transcript as the run progresses (not just when it finishes),
+   * so a reload mid-run keeps the user message, the partial answer and — more
+   * importantly — every tool step that already ran.
+   */
+  const persistSoon = useCallback(() => {
+    if (persistTimerRef.current != null) {
+      return;
+    }
+    persistTimerRef.current = window.setTimeout(() => {
+      persistTimerRef.current = null;
+      persist(itemsRef.current);
+    }, 250);
+  }, [persist]);
+
+  const flushPersist = useCallback(() => {
+    clearPersistTimer();
+    persist(itemsRef.current);
+  }, [clearPersistTimer, persist]);
+
   const commitItems = useCallback(
     (updater: (previous: ChatItem[]) => ChatItem[]) => {
-      setItems((previous) => {
-        const next = updater(previous);
-        itemsRef.current = next;
-        return next;
-      });
+      const next = updater(itemsRef.current);
+      itemsRef.current = next;
+      setItems(next);
+      persistSoon();
     },
-    [],
+    [persistSoon],
   );
 
   const appendAssistant = useCallback(
@@ -217,10 +247,18 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
         assistantRef.current = null;
         abortRef.current = null;
         setStatus("idle");
-        persist(itemsRef.current);
+        flushPersist();
       }
     },
-    [api, appendAssistant, commitItems, persist, registry, scene, selections],
+    [
+      api,
+      appendAssistant,
+      commitItems,
+      flushPersist,
+      registry,
+      scene,
+      selections,
+    ],
   );
 
   const stop = useCallback(() => {
@@ -238,14 +276,32 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     setItems([]);
     setError(null);
     setStatus("idle");
+    clearPersistTimer();
     clearChat();
-  }, []);
+  }, [clearPersistTimer]);
+
+  // don't lose the last tool steps if the tab is closed or reloaded
+  useEffect(() => {
+    const flush = () => flushPersist();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        flushPersist();
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [flushPersist]);
 
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      flushPersist();
     };
-  }, []);
+  }, [flushPersist]);
 
   return {
     items,

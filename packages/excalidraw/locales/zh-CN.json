@@ -1,7 +1,7 @@
 {
   "labels": {
-    "signUp": "",
-    "signIn": "",
+    "signUp": "注册",
+    "signIn": "登录",
     "paste": "粘贴",
     "pasteAsPlaintext": "粘贴为纯文本",
     "pasteCharts": "粘贴图表",
@@ -37,9 +37,9 @@
     "strokeStyle_dashed": "虚线",
     "strokeStyle_dotted": "点虚线",
     "sloppiness": "线条风格",
-    "pressure": "",
-    "pressure_constant": "",
-    "pressure_variable": "",
+    "pressure": "压感",
+    "pressure_constant": "固定",
+    "pressure_variable": "可变",
     "opacity": "透明度",
     "textAlign": "文本对齐",
     "edges": "边角",
@@ -111,7 +111,7 @@
     "group": "编组",
     "ungroup": "解除编组",
     "collaborators": "协作者",
-    "you": "",
+    "you": "你",
     "toggleGrid": "切换网格显示",
     "addToLibrary": "添加到素材库中",
     "removeFromLibrary": "从素材库中移除",
@@ -191,11 +191,19 @@
     "shapeSwitch": "切换形状",
     "preferences": "首选项",
     "preferences_toolLock": "工具锁",
-    "boxSelectionMode": "",
-    "boxSelectionContain": "",
-    "boxSelectionOverlap": "",
+    "boxSelectionMode": "框选依据",
+    "boxSelectionContain": "完全包含",
+    "boxSelectionOverlap": "重叠即选中",
     "arrowBinding": "箭头绑定",
-    "midpointSnapping": "吸附到中点"
+    "midpointSnapping": "吸附到中点",
+    "upgrade": "升级",
+    "textColor": "文字颜色",
+    "removeFrame": "移除画框",
+    "toggleWrap": "换行 / 取消换行",
+    "showHints": "显示提示",
+    "inputDevice": "输入设备",
+    "inputDeviceTrackpad": "触控板",
+    "inputDeviceMouse": "鼠标"
   },
   "elementLink": {
     "title": "链接到对象",
@@ -261,7 +269,8 @@
     "publishLibrary": "重命名或发布",
     "submit": "提交",
     "confirm": "确定",
-    "embeddableInteractionButton": "点击以开始交互"
+    "embeddableInteractionButton": "点击以开始交互",
+    "reset": "重置"
   },
   "alerts": {
     "clearReset": "这将会清除整个画布。您是否要继续?",
@@ -334,16 +343,17 @@
     "magicframe": "线框图至代码",
     "embeddable": "嵌入网页",
     "laser": "激光笔",
-    "autoshape": "",
-    "bucketfill": "",
+    "autoshape": "手绘形状",
+    "bucketfill": "油漆桶填充",
     "hand": "抓手（平移工具）",
     "extraTools": "更多工具",
     "mermaidToExcalidraw": "Mermaid 至 Excalidraw",
-    "convertElementType": "切换形状种类"
+    "convertElementType": "切换形状种类",
+    "stickynote": "便签"
   },
   "bucketfill": {
-    "noRegion": "",
-    "tooComplex": ""
+    "noRegion": "这里找不到可以填充的封闭区域。",
+    "tooComplex": "该区域过于复杂，无法填充。"
   },
   "element": {
     "rectangle": "矩形",
@@ -359,7 +369,8 @@
     "magicframe": "线框图至代码",
     "embeddable": "嵌入网页",
     "selection": "选择",
-    "iframe": "IFrame"
+    "iframe": "IFrame",
+    "stickynote": "便签"
   },
   "headings": {
     "canvasActions": "画布动作",
@@ -375,7 +386,7 @@
     "freeDraw": "点击并拖动，完成时松开",
     "text": "提示：您也可以使用选择工具双击任意位置来添加文字",
     "embeddable": "点击并拖动以创建嵌入网页",
-    "autoshape": "",
+    "autoshape": "画出矩形、圆形、菱形、直线和箭头",
     "text_selected": "双击或按{{shortcut}}编辑文本",
     "text_editing": "按{{shortcut_1}}或{{shortcut_2}}完成编辑",
     "linearElementMulti": "点击最后的点或按{{shortcut_1}}或{{shortcut_2}}完成",
@@ -383,7 +394,7 @@
     "resize": "缩放时按住{{shortcut_1}}可以约束宽高比例，\n按住{{shortcut_2}}可以从中间缩放",
     "resizeImage": "按住{{shortcut_1}}可以自由缩放，\n按住{{shortcut_2}}可以从中间缩放",
     "rotate": "旋转时可以按住{{shortcut}}来约束角度",
-    "toggleArrowhead": "",
+    "toggleArrowhead": "双击可切换箭头端点样式",
     "lineEditor_info": "按住{{shortcut_1}}双击，或者按{{shortcut_2}}编辑点",
     "lineEditor_line_info": "双击或按{{shortcut}}编辑点",
     "lineEditor_pointSelected": "按{{shortcut_1}}移除点，按{{shortcut_2}}复制点，拖拽移动点",
@@ -396,7 +407,10 @@
     "firefox_clipboard_write": "将高级配置首选项“dom.events.asyncClipboard.clipboardItem”设置为“true”可以启用此功能。要更改 Firefox 的高级配置首选项，请前往“about:config”页面。",
     "disableSnapping": "按住{{shortcut}}禁用吸附",
     "enterCropEditor": "双击图片或按{{shortcut}}开始裁剪",
-    "leaveCropEditor": "点击图片以外的区域或按{{shortcut_1}}或{{shortcut_2}}完成裁剪"
+    "leaveCropEditor": "点击图片以外的区域或按{{shortcut_1}}或{{shortcut_2}}完成裁剪",
+    "stickynote": "单击放置便签，或拖动调整大小",
+    "resizeStickyNote": "按住{{shortcut_1}}自由缩放，按住{{shortcut_2}}以中心缩放",
+    "cycleSelection": "{{shortcut}}+单击循环切换选中的元素，拖动可复制"
   },
   "canvasError": {
     "cannotShowPreview": "无法显示预览",
@@ -613,10 +627,10 @@
     "shades": "色调明暗",
     "hexCode": "十六进制值",
     "noShades": "此颜色没有可用的明暗变化",
-    "invalidColor": "",
-    "invalidHexLength": "",
-    "topPicksTip": "",
-    "resetTopPicks": ""
+    "invalidColor": "不是有效的颜色",
+    "invalidHexLength": "十六进制色值必须为 3、4、6 或 8 位",
+    "topPicksTip": "提示：把任意颜色拖到「常用颜色」即可固定",
+    "resetTopPicks": "恢复默认的常用颜色"
   },
   "overwriteConfirm": {
     "action": {
@@ -648,6 +662,15 @@
         "description": "加载外部绘图将<bold>替换您现有的内容</bold>。<br></br>您可以先使用下列方式备份您的绘图。"
       }
     }
+  },
+  "fileDrop": {
+    "replace": "松开以替换画布内容",
+    "add": "松开以添加到画布",
+    "importLibrary": "松开以导入素材库",
+    "replaceHint": "按住 <shift>Shift</shift> 可保留现有内容",
+    "keepHint": "现有内容将被保留",
+    "libraryHint": "素材库内容将被追加",
+    "replacedToast": "内容已替换，按 {{shortcut}} 可撤销"
   },
   "mermaid": {
     "title": "Mermaid 至 Excalidraw",
@@ -682,7 +705,7 @@
     "placeholder": {
       "title": "让我们设计您的图表",
       "description": "描述您想要创建的图表，我们将为您生成它。",
-      "hint": ""
+      "hint": "目前支持流程图、时序图、类图、状态图和实体关系图。"
     },
     "preview": "预览",
     "insert": "插入",
@@ -714,7 +737,9 @@
     },
     "sceneFonts": "画布中的",
     "availableFonts": "可用字体",
-    "empty": "未找到字体"
+    "empty": "未找到字体",
+    "topPicksTip": "提示：把任意字体拖到「常用字体」即可固定",
+    "resetTopPicks": "恢复默认的常用字体"
   },
   "userList": {
     "empty": "未找到用户",

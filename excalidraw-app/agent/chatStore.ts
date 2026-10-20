@@ -32,6 +32,16 @@ export type StoredChat = {
 const MAX_ITEMS = 200;
 const MAX_STORED_CONTENT = 4000;
 
+let itemCounter = 0;
+
+/**
+ * Ids have to be unique across reloads too: a restored transcript keeps the ids
+ * it was saved with, so a plain counter would collide with them and React would
+ * mix up (or drop) the restored rows.
+ */
+export const nextItemId = () =>
+  `item_${Date.now().toString(36)}_${(++itemCounter).toString(36)}`;
+
 const storage = () =>
   typeof window === "undefined" ? null : window.localStorage;
 

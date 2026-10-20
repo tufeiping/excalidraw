@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
+import { MagicIcon, usersIcon } from "@excalidraw/excalidraw/components/icons";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
@@ -104,6 +105,15 @@ const ToolItem = ({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) => (
   </details>
 );
 
+const Avatar = ({ role }: { role: "user" | "assistant" }) => (
+  <span
+    className={`agent-msg__avatar agent-msg__avatar--${role}`}
+    aria-hidden="true"
+  >
+    {role === "assistant" ? MagicIcon : usersIcon}
+  </span>
+);
+
 const MessageItem = ({ item }: { item: ChatItem }) => {
   if (item.kind === "tool") {
     return <ToolItem item={item} />;
@@ -112,13 +122,27 @@ const MessageItem = ({ item }: { item: ChatItem }) => {
   if (item.kind === "assistant") {
     return (
       <div className="agent-msg agent-msg--assistant">
-        {item.reasoning ? (
-          <details className="agent-reasoning">
-            <summary>思考过程</summary>
-            <div>{item.reasoning}</div>
-          </details>
-        ) : null}
-        {item.text ? <RichText text={item.text} /> : null}
+        <Avatar role="assistant" />
+        <div className="agent-msg__main">
+          {item.reasoning ? (
+            <details className="agent-reasoning">
+              <summary>思考过程</summary>
+              <div>{item.reasoning}</div>
+            </details>
+          ) : null}
+          {item.text ? <RichText text={item.text} /> : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "user") {
+    return (
+      <div className="agent-msg agent-msg--user">
+        <Avatar role="user" />
+        <div className="agent-msg__main">
+          <div className="agent-msg__body">{item.text}</div>
+        </div>
       </div>
     );
   }

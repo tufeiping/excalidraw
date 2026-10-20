@@ -53,32 +53,15 @@ export const MagicSettings = ({
   return (
     <Dialog
       onCloseRequest={onConfirm}
-      title={
-        <div style={{ display: "flex" }}>
-          文本转图表 (AI){" "}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0.1rem 0.5rem",
-              marginLeft: "1rem",
-              fontSize: 14,
-              borderRadius: "12px",
-              background: "var(--color-promo)",
-              color: "var(--color-surface-lowest)",
-            }}
-          >
-            实验性
-          </div>
-        </div>
-      }
+      title="AI 助手设置"
       className="MagicSettings"
       autofocus={false}
     >
       <Paragraph>
-        对于文本转图表功能，我们使用 <InlineIcon icon={MagicIcon} /> DeepSeek
-        服务（也可通过运行时配置指向任何 OpenAI 兼容接口）。
+        AI 助手是一个完全在浏览器里运行的画布 Agent：它把你提供的 LLM
+        当作大脑，能直接读取当前画布、按照你的指令局部增删改元素（也可以只改选中的部分），改完再用一句话说明做了什么。
+        默认使用 <InlineIcon icon={MagicIcon} /> DeepSeek
+        服务，部署方也可以通过运行时配置指向任何 OpenAI 兼容接口。
       </Paragraph>
       <Paragraph>
         DeepSeek 是国内性价比比较高的 AI 服务，您可以创建一个{" "}
@@ -129,8 +112,9 @@ export const MagicSettings = ({
       />
 
       <Paragraph>
-        设置 API
-        密钥后，您可以在工具栏的「文本转图表」中输入提示词生成图表，也可以将画布元素包装成框架后转换为代码。
+        设置密钥后，你可以在菜单里打开右侧的「AI
+        助手」面板，用自然语言直接编辑画布（读、写、局部替换、按选区修改）；
+        工具栏里的「文本转图表」则更适合一次性用提示词生成图表，或把画框内容转换成代码。
       </Paragraph>
 
       <FilledButton

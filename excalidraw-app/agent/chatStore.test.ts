@@ -2,6 +2,7 @@ import {
   clearChat,
   createChat,
   loadChat,
+  nextItemId,
   saveChat,
   trimHistory,
 } from "./chatStore";
@@ -123,6 +124,40 @@ describe("chat storage", () => {
     if (item.kind === "tool") {
       expect(item.content!.length).toBeLessThan(5000);
       expect(item.content).toMatch(/已截断/);
+    }
+  });
+
+  it("keeps tool steps and never reuses the restored ids", () => {
+    const chat = createChat();
+    saveChat(
+      chat,
+      [],
+      [
+        { id: "a1", kind: "user", text: "改一下" },
+        {
+          id: "a2",
+          kind: "tool",
+          name: "read_canvas",
+          args: '{"page":1}',
+          status: "ok",
+          content: "L0: {…}",
+        },
+        { id: "a3", kind: "assistant", text: "改好了" },
+      ],
+    );
+
+    const loaded = loadChat();
+    // the tool step survives a reload, so the transcript doesn't collapse into
+    // two adjacent assistant bubbles with nothing in between
+    expect(loaded.items.map((item) => item.kind)).toEqual([
+      "user",
+      "tool",
+      "assistant",
+    ]);
+
+    const existing = new Set(loaded.items.map((item) => item.id));
+    for (let index = 0; index < 5; index++) {
+      expect(existing.has(nextItemId())).toBe(false);
     }
   });
 
