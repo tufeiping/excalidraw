@@ -15,6 +15,13 @@ services:
       disable: true
     environment:
       - NODE_ENV=development
+      # Optional runtime overrides (no rebuild needed); see README
+      - EXCALIDRAW_COLLAB_URL=${EXCALIDRAW_COLLAB_URL:-}
+      - EXCALIDRAW_COLLAB_PATH=${EXCALIDRAW_COLLAB_PATH:-}
+      - EXCALIDRAW_BACKEND_URL=${EXCALIDRAW_BACKEND_URL:-}
+      - EXCALIDRAW_BACKEND_API_PREFIX=${EXCALIDRAW_BACKEND_API_PREFIX:-}
+      - EXCALIDRAW_BACKEND_GET_URL=${EXCALIDRAW_BACKEND_GET_URL:-}
+      - EXCALIDRAW_BACKEND_POST_URL=${EXCALIDRAW_BACKEND_POST_URL:-}
     volumes:
       - ./:/opt/node_app/app:delegated
       - ./package.json:/opt/node_app/package.json

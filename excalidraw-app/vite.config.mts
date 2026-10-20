@@ -65,8 +65,18 @@ export default defineConfig({
 
       workbox: {
         // Don't push fonts and locales to app precache
-        globIgnores: ["fonts.css", "**/locales/**", "service-worker.js"],
+        globIgnores: [
+          "fonts.css",
+          "**/locales/**",
+          "service-worker.js",
+          "runtime-config.js",
+        ],
         runtimeCaching: [
+          {
+            // Never serve a stale runtime config from the service worker.
+            urlPattern: /runtime-config\.js$/,
+            handler: "NetworkOnly",
+          },
           {
             urlPattern: new RegExp("/.+.(ttf|woff2|otf)"),
             handler: "CacheFirst",

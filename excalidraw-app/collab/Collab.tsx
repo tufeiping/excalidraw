@@ -56,6 +56,7 @@ import {
   importUsernameFromLocalStorage,
   saveUsernameToLocalStorage,
 } from "../data/localStorage";
+import { getCollabServerUrl, getCollabSocketPath } from "../runtimeEnv";
 import Portal from "./Portal";
 import { t } from "../../packages/excalidraw/i18n";
 import { UserIdleState } from "../../packages/excalidraw/types";
@@ -482,9 +483,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.fallbackInitializationHandler = fallbackInitializationHandler;
 
     try {
+      const socketPath = getCollabSocketPath();
       this.portal.socket = this.portal.open(
-        socketIOClient(import.meta.env.VITE_APP_WS_SERVER_URL, {
+        socketIOClient(getCollabServerUrl(), {
           transports: ["websocket", "polling"],
+          ...(socketPath ? { path: socketPath } : {}),
         }),
         roomId,
         roomKey,

@@ -202,3 +202,73 @@ If you like the project, you can become a sponsor at [Open Collective](https://o
 Last but not least, we're thankful to these companies for offering their services for free:
 
 [![Vercel](./.github/assets/vercel.svg)](https://vercel.com) [![Sentry](./.github/assets/sentry.svg)](https://sentry.io) [![Crowdin](./.github/assets/crowdin.svg)](https://crowdin.com)
+
+## Runtime configuration (collaboration / storage)
+
+The collaboration and scene-storage endpoints can be changed **without rebuilding** the
+image. At container start, `docker/99-excalidraw-runtime-config.sh` generates
+`/usr/share/nginx/html/whiteboard/runtime-config.js` from the following environment
+variables, and the app prefers these values over the build-time `.env.production` ones:
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `EXCALIDRAW_COLLAB_URL` | Collaboration WebSocket origin, e.g. `wss://whiteboard.example.com` | `VITE_APP_WS_SERVER_URL` |
+| `EXCALIDRAW_COLLAB_PATH` | Socket.IO path (optional), e.g. `/whiteboard-socket.io/` | `/socket.io/` |
+| `EXCALIDRAW_BACKEND_URL` | Scene storage base URL, e.g. `https://whiteboard.example.com/whiteboard-api` | `VITE_APP_BACKEND_V2_GET_URL` |
+| `EXCALIDRAW_BACKEND_API_PREFIX` | API path appended to the base URL (optional) | `/api/v2` |
+| `EXCALIDRAW_BACKEND_GET_URL` | Full read endpoint (optional, overrides base + prefix) | `<base><prefix>/` |
+| `EXCALIDRAW_BACKEND_POST_URL` | Full write endpoint (optional, overrides base + prefix) | `<base><prefix>/post/` |
+
+Example (avoid clashing with an existing `/api/v1` or `/api/v2` on the same domain):
+
+```yaml
+services:
+  excalidraw:
+    image: hub.yonyouaud.com/a8/excalidraw:20250316
+    environment:
+      EXCALIDRAW_COLLAB_URL: wss://www.flylatex.cn
+      # keep collaboration off the /socket.io/ already used by another service
+      EXCALIDRAW_COLLAB_PATH: /whiteboard-socket.io/
+      # unique external path, so it does not clash with the domain's /api/v2:
+      # GET  -> https://www.flylatex.cn/whiteboard-api/api/v2/
+      # POST -> https://www.flylatex.cn/whiteboard-api/api/v2/post/
+      EXCALIDRAW_BACKEND_URL: https://www.flylatex.cn/whiteboard-api/api/v2
+```
+
+nginx then routes only the dedicated prefix to the storage service, e.g.:
+
+```nginx
+location /whiteboard-api/ {
+    proxy_pass http://127.0.0.1:8081/;
+}
+
+location /whiteboard-socket.io/ {
+    rewrite ^/whiteboard-socket.io/(.*)$ /socket.io/$1 break;
+    proxy_pass http://127.0.0.1:8082;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+    proxy_set_header Host $host;
+}
+```
+
+If the storage backend does not implement the official `/api/v2/` + `/api/v2/post/`
+routes (for example `alswl/excalidraw-storage-backend` exposes `/scenes/` and `/scenes`),
+set the full URLs instead:
+
+```yaml
+      EXCALIDRAW_BACKEND_GET_URL: https://www.flylatex.cn/whiteboard-api/api/v2/scenes/
+      EXCALIDRAW_BACKEND_POST_URL: https://www.flylatex.cn/whiteboard-api/api/v2/scenes
+```
+
+Notes:
+
+- `EXCALIDRAW_COLLAB_URL` must be an origin (`scheme://host[:port]`). A path would be
+  interpreted by `socket.io-client` as a namespace, which `excalidraw-room` does not serve.
+  The entrypoint strips the path and logs a warning if one is present.
+- Use `EXCALIDRAW_COLLAB_PATH` when the domain's default `/socket.io/` is already taken;
+  nginx must rewrite that path back to `/socket.io/` for the room server (see above).
+- `EXCALIDRAW_BACKEND_URL` is the full API base; include your unique path directly
+  (e.g. `/whiteboard-api/api/v2`). If you prefer origin + prefix instead, set
+  `EXCALIDRAW_BACKEND_API_PREFIX`; don't repeat the same path in both variables.
+- If no variables are set, the build-time values from `.env.production` are used.
