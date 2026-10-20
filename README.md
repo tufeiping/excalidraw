@@ -24,7 +24,7 @@ First Step:
 
 clone the repository and install the dependencies.
 
-> Important: The node version must in [18.17.1] range.
+> Important: **Node.js >= 20 is required** (22 LTS recommended; the Docker build uses `node:24`). Node 18 now fails at `yarn install`, see [Node Version Range](#node-version-range).
 
 build the product with flow commands:
 
@@ -35,11 +35,13 @@ yarn build
 
 Second Step:
 
-copy the build folder to the flylatex server and build the docker image.
+build the docker image.
 
 ```shell
 sudo docker build -t hub.yonyouaud.com/a8/excalidraw:20250316 .
 ```
+
+> The `Dockerfile` is a multi-stage build: the `build` stage runs on `node:24` and does its own `yarn --frozen-lockfile` + `yarn build:app:docker`, then the result is copied into nginx under `/whiteboard`. So for the Docker path the host only needs Docker — no host `yarn`/`yarn build` (and the `build/` folder is excluded by `.dockerignore`). Running `yarn && yarn build` on the host is only needed when deploying the static build straight to nginx.
 
 Third Step:
 
@@ -51,19 +53,42 @@ sudo docker push hub.yonyouaud.com/a8/excalidraw:20250316
 
 ## Node Version Range
 
-Node version must in [18.17-20.x] range.
-
-<img src="./node-version.png"/>
-
-Build failed when node version out of range.
+**Node.js >= 20.0.0 is required** since the upstream merge that brought in `mermaid@11` → `marked@16` (whose `engines.node` is `>= 20`). Node 18 can no longer install the tree:
 
 ```shell
-excalidraw-monorepo@: The engine "node" is incompatible with this module. Expected version "18.0.0 - 20.x.x". Got "22.5.1"
-
-next@14.1.4: The engine "node" is incompatible with this module. Expected version ">=18.17.0". Got "18.8.0"
+$ node -v
+v18.20.2
+$ yarn
+...
+error marked@16.4.2: The engine "node" is incompatible with this module. Expected version ">= 20". Got "18.20.2"
+error Found incompatible module.
 ```
 
-Recommend to use node version **18.17.1**.
+| Where                           | Node version                            |
+| ------------------------------- | --------------------------------------- |
+| Local build / packaging machine | 20.x, 22.x or 24.x (22 LTS recommended) |
+| Upstream CI                     | `20.x`                                  |
+| `Dockerfile` (`build` stage)    | `node:24`                               |
+
+Upgrading the build machine:
+
+```shell
+# Debian/Ubuntu (incl. WSL), as root
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y nodejs
+node -v                 # v22.x
+npm i -g yarn@1.22.19   # keep yarn 1.x
+
+cd excalidraw
+rm -rf node_modules     # native binaries (rollup/esbuild) differ per install
+yarn && yarn build
+```
+
+Escape hatch (not supported by upstream, but usually enough for a browser-only bundle — `mermaid`/`marked` end up as plain JS in the build):
+
+```shell
+yarn install --ignore-engines && yarn build
+```
 
 #### Tips
 
