@@ -581,7 +581,8 @@ function CommandPaletteInner({
           category: DEFAULT_CATEGORIES.tools,
           icon: mermaidLogoIcon,
           viewMode: false,
-          predicate: appProps.aiEnabled,
+          // FlyLaTeX: the Mermaid converter is not an AI feature, so it stays
+          // available even when AI is turned off upstream-style.
           perform: () => {
             setAppState((state) => ({
               ...state,

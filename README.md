@@ -290,14 +290,11 @@ Notes:
 - `EXCALIDRAW_BACKEND_URL` is the full API base; include your unique path directly (e.g. `/whiteboard-api/api/v2`). If you prefer origin + prefix instead, set `EXCALIDRAW_BACKEND_API_PREFIX`; don't repeat the same path in both variables.
 - If no variables are set, the build-time values from `.env.production` are used.
 
-## AI (text-to-diagram) configuration
+## AI configuration
 
-The AI features are provider-agnostic. `VITE_APP_AI_PROVIDER` (build time) or `EXCALIDRAW_AI_PROVIDER` (runtime) selects the protocol:
+There is **one** AI surface: the right-hand **AI 助手** panel (see below). Upstream's AI generation entry points are switched off with `aiEnabled={false}`; the manual **Mermaid 至 Excalidraw** converter (`@excalidraw/mermaid-to-excalidraw`) is _not_ an AI feature and stays available (toolbar `生成` group, command palette).
 
-| Provider | Behaviour |
-| --- | --- |
-| `deepseek` (default in `.env.*`) | Calls an **OpenAI-compatible** `POST <base>/chat/completions` directly from the browser, streaming SSE. Users paste their own API key in **菜单 → AI 设置** (stored in `localStorage`, never sent anywhere but the AI provider). |
-| `excalidraw` | Talks to an excalidraw AI service (`/v1/ai/text-to-diagram/chat-streaming`, `/v1/ai/diagram-to-code/generate-streaming`), which additionally enables the wireframe → code plugin. |
+The agent is provider-agnostic: any OpenAI-compatible endpoint with tool-calling support works. Users paste their own API key in **菜单 → AI 设置** (stored in `localStorage`, never sent anywhere but that provider); a key injected by the deployment via `EXCALIDRAW_AI_API_KEY` is used as a fallback, and the panel shows a "未配置 LLM 服务" banner with a shortcut to the settings dialog whenever neither exists.
 
 | Variable | Description | Default |
 | --- | --- | --- |
@@ -314,18 +311,20 @@ EXCALIDRAW_AI_MODEL: deepseek-chat
 
 Notes:
 
-- DeepSeek has no vision model, so with `deepseek` the _wireframe → code_ entry is hidden automatically (`DiagramToCodePlugin` is only registered for the `excalidraw` provider).
+- Streaming is required (`stream: true`); the browser parses SSE and reassembles `tool_calls` deltas.
 - Any OpenAI-compatible gateway works (vLLM, OpenRouter, an internal proxy …) — point `EXCALIDRAW_AI_BACKEND` at it. A key injected via `EXCALIDRAW_AI_API_KEY` is visible to every visitor of the deployment, so prefer letting users enter their own key.
+- `EXCALIDRAW_AI_PROVIDER` is kept for compatibility; the agent always speaks the OpenAI-compatible protocol.
 
 ## AI canvas agent (client-side)
 
-In addition to the text-to-diagram dialog, the right-hand **AI 助手** panel runs a tool-calling agent that reads and edits the live canvas. Everything happens in the browser — there is no server-side agent:
+The right-hand **AI 助手** panel runs a tool-calling agent that reads and edits the live canvas. Everything happens in the browser — there is no server-side agent:
 
 ```
 user message ─▶ runAgent() ─▶ POST <AI_BACKEND>/chat/completions (streaming SSE, tools)
                     │  ▲
         tool_calls  ▼  │  tool results
-                ToolRegistry ──▶ read_canvas / write_canvas / read_selection / replace_selection
+                ToolRegistry ──▶ read_canvas / write_canvas / read_selection
+                                 replace_selection / insert_diagram
                     │
                     ▼
             localStorage snapshot ──▶ updateScene() (one undoable step)
@@ -339,6 +338,7 @@ user message ─▶ runAgent() ─▶ POST <AI_BACKEND>/chat/completions (stream
 | `write_canvas` | Line-based editing: `replace` / `delete` / `insert` / `append` / `replace_all`. Lines are element JSON; existing elements are merged by `id` (partial patches allowed), new elements only need a `type`. All-or-nothing: one invalid line aborts the write. |
 | `read_selection` | Returns only the elements the user has selected and records a `selectionId` (element ids + z-order). |
 | `replace_selection` | Replaces exactly the recorded range, so "change _this_" never touches the rest of the canvas. Omitted elements are deleted, new lines are inserted in place, z-order is preserved. |
+| `insert_diagram` | Renders a **Mermaid** definition into native Excalidraw elements (via `@excalidraw/mermaid-to-excalidraw` + `convertToExcalidrawElements`) and appends them in one step. This is how the agent draws a diagram from scratch instead of assembling dozens of lines by hand; positions default to the right of existing content (or the current viewport when the canvas is empty). |
 
 Writes go through `buildElementsFromLines()` → `restoreElements()` (dimension and binding repair, text re-measuring/centering) and are applied with a single `updateScene({ captureUpdate: IMMEDIATELY })`, so the canvas never flickers and `Ctrl+Z` reverts the whole agent edit at once.
 
@@ -347,7 +347,10 @@ Writes go through `buildElementsFromLines()` → `restoreElements()` (dimension 
 | `localStorage` key | Contents |
 | --- | --- |
 | `excalidraw-agent-scene` | Line-numbered canvas snapshot (`rev`, `lines`, `ids`) the model reads, updated from the canvas before every read/write. |
-| `excalidraw-agent-chat` | Transcript (messages for the model + rendered items). Only the **last 10 user turns** (and ~60k characters) are sent to the model; older turns stay on screen but are dropped from the request. |
+| `excalidraw-agent-chat-index` | List of stored conversations (`id`, `title`, `createdAt`, `updatedAt`), newest first; capped at 50. |
+| `excalidraw-agent-chat:<id>` | One conversation: messages for the model + rendered items. Only the **last 10 user turns** (and ~60k characters) are sent to the model; older turns stay on screen but are dropped from the request. |
+| `excalidraw-agent-chat` | Legacy single-conversation payload, migrated on first load. |
+| `excalidraw-agent-panel-width` | Panel width in px (resizable, clamped to 300–900 and to the viewport). |
 
 Loop guard rails (see `excalidraw-app/agent/loop.ts`): max 16 iterations per turn, 12k characters per tool result, the same failing call is not retried more than twice, and a turn stops after 6 failed tool calls.
 

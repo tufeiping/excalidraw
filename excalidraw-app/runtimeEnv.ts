@@ -124,6 +124,9 @@ export const getAiApiKey = (): string | undefined =>
       : undefined,
   ) ?? trim(getRuntimeEnv().aiApiKey);
 
+/** fired whenever the key changes, so open UI can re-check its configuration */
+export const AI_KEY_CHANGED_EVENT = "excalidraw-ai-key-changed";
+
 export const setAiApiKey = (key: string | undefined) => {
   if (typeof window === "undefined") {
     return;
@@ -133,6 +136,7 @@ export const setAiApiKey = (key: string | undefined) => {
   } else {
     window.localStorage.removeItem(AI_API_KEY_STORAGE_KEY);
   }
+  window.dispatchEvent(new Event(AI_KEY_CHANGED_EVENT));
 };
 
 /** True when a client-side key is required but missing */

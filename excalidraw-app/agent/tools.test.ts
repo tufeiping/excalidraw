@@ -10,6 +10,16 @@ import { canvasTools } from "./tools";
 
 import type { Tool, ToolContext } from "./types";
 
+// mermaid needs a real browser, so the parser is the only thing mocked here
+const { parseMermaidToExcalidraw } = vi.hoisted(() => ({
+  parseMermaidToExcalidraw: vi.fn(),
+}));
+
+vi.mock("@excalidraw/mermaid-to-excalidraw", () => ({
+  parseMermaidToExcalidraw: (...args: unknown[]) =>
+    parseMermaidToExcalidraw(...args),
+}));
+
 const rectangle = (opts: Record<string, unknown> = {}) =>
   newElement({
     type: "rectangle",
@@ -82,6 +92,29 @@ const createHarness = (elements: ExcalidrawElement[]) => {
 describe("canvas tools", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    parseMermaidToExcalidraw.mockReset();
+    parseMermaidToExcalidraw.mockImplementation(async () => ({
+      elements: [
+        {
+          type: "rectangle",
+          id: "node_1",
+          x: 0,
+          y: 0,
+          width: 160,
+          height: 70,
+          label: { text: "接入层" },
+        },
+        {
+          type: "rectangle",
+          id: "node_2",
+          x: 260,
+          y: 0,
+          width: 160,
+          height: 70,
+          label: { text: "服务层" },
+        },
+      ],
+    }));
   });
 
   describe("read_canvas", () => {
@@ -300,6 +333,92 @@ describe("canvas tools", () => {
       });
       expect(result.isError).toBe(true);
       expect(result.content).toMatch(/start 必须在/);
+    });
+  });
+
+  describe("insert_diagram", () => {
+    it("renders mermaid into native elements next to the existing content", async () => {
+      const existing = rectangle({ x: 0, y: 0, width: 100, height: 60 });
+      const harness = createHarness([existing]);
+
+      const result = await harness.run("insert_diagram", {
+        mermaid: "flowchart LR\n A --> B",
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(parseMermaidToExcalidraw).toHaveBeenCalledWith(
+        "flowchart LR\n A --> B",
+      );
+
+      const scene = harness.getScene();
+      // two nodes, each carrying a bound text element
+      expect(scene.length).toBeGreaterThan(2);
+      const created = scene.filter((element) => element.id !== existing.id);
+      expect(created.every((element) => element.x > existing.x + 100)).toBe(
+        true,
+      );
+      expect(result.content).toMatch(/已插入/);
+
+      // the snapshot is refreshed so later line-number edits stay valid
+      const snapshot = loadSnapshot();
+      expect(snapshot.lines.length).toBe(
+        scene.filter((element) => !element.isDeleted).length,
+      );
+      expect(harness.ctx.session.expectedRev).toBe(snapshot.rev);
+    });
+
+    it("honours an explicit position", async () => {
+      const harness = createHarness([rectangle()]);
+      await harness.run("insert_diagram", {
+        mermaid: "flowchart LR\n A --> B",
+        x: 500,
+        y: 300,
+      });
+
+      const created = harness
+        .getScene()
+        .filter((element) => element.type === "rectangle" && element.x >= 500);
+      expect(created.length).toBeGreaterThan(0);
+      expect(Math.min(...created.map((element) => element.y))).toBe(300);
+    });
+
+    it("reports a parse failure instead of touching the canvas", async () => {
+      parseMermaidToExcalidraw.mockRejectedValueOnce(
+        new Error("Parse error on line 2"),
+      );
+      const harness = createHarness([rectangle()]);
+      const before = harness.getScene().length;
+
+      const result = await harness.run("insert_diagram", {
+        mermaid: "flowchart LR\n A -->",
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toMatch(/Mermaid 解析失败/);
+      expect(harness.getScene().length).toBe(before);
+    });
+
+    it("refuses to write in view mode", async () => {
+      const harness = createHarness([]);
+      harness.ctx.api.getAppState = () =>
+        ({
+          selectedElementIds: {},
+          viewModeEnabled: true,
+        } as never);
+
+      const result = await harness.run("insert_diagram", {
+        mermaid: "flowchart LR\n A --> B",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content).toMatch(/只读/);
+      expect(parseMermaidToExcalidraw).not.toHaveBeenCalled();
+    });
+
+    it("rejects an empty definition", async () => {
+      const harness = createHarness([]);
+      const result = await harness.run("insert_diagram", { mermaid: "   " });
+      expect(result.isError).toBe(true);
+      expect(parseMermaidToExcalidraw).not.toHaveBeenCalled();
     });
   });
 

@@ -1,4 +1,8 @@
+import { convertToExcalidrawElements } from "@excalidraw/element";
+
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+
+import { viewportCoordsToSceneCoords } from "@excalidraw/common";
 
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
@@ -677,9 +681,148 @@ const replaceSelection: Tool = {
   },
 };
 
+/**
+ * Renders a Mermaid definition into native elements.
+ *
+ * Mermaid is a much better fit than raw element lines for "draw me a whole
+ * diagram": the model writes six lines of Mermaid instead of a hundred lines of
+ * element JSON, and the layout comes out tidy.
+ */
+const insertDiagram: Tool = {
+  name: "insert_diagram",
+  description:
+    "把一段 Mermaid 图渲染成原生画布元素并插入画布。用于「从零画一张流程图、架构图、时序图、状态图」。比用 write_canvas 逐行拼元素更省 token、排版更整齐；已有的元素不会被动到（追加而不是替换）。插入后可以用 line 号继续用 write_canvas 微调。",
+  parameters: {
+    type: "object",
+    properties: {
+      mermaid: {
+        type: "string",
+        description:
+          "Mermaid 定义本身，不要包 ```mermaid 代码块。例如：flowchart LR; A[接入层] --> B[服务层]",
+      },
+      x: {
+        type: "number",
+        description: "左上角 x 坐标，省略时放到现有内容的右侧",
+      },
+      y: {
+        type: "number",
+        description: "左上角 y 坐标，省略时与现有内容顶部对齐",
+      },
+    },
+    required: ["mermaid"],
+    additionalProperties: false,
+  },
+  run: async (args, ctx) => {
+    const readOnly = readOnlyReason(ctx);
+    if (readOnly) {
+      return { content: `未插入：${readOnly}`, isError: true };
+    }
+    const definition =
+      typeof args.mermaid === "string" ? args.mermaid.trim() : "";
+    if (!definition) {
+      return { content: "未插入：mermaid 为空", isError: true };
+    }
+
+    let skeleton;
+    try {
+      // mermaid is a heavy dependency: keep it out of the main bundle
+      const { parseMermaidToExcalidraw } = await import(
+        "@excalidraw/mermaid-to-excalidraw"
+      );
+      skeleton = await parseMermaidToExcalidraw(definition);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return {
+        content: `未插入，Mermaid 解析失败：\n${detail.slice(0, 800)}`,
+        isError: true,
+      };
+    }
+
+    const converted = convertToExcalidrawElements(skeleton.elements ?? [], {
+      regenerateIds: true,
+    });
+    if (!converted.length) {
+      return {
+        content: "未插入：这段 Mermaid 没有生成任何元素",
+        isError: true,
+      };
+    }
+
+    const { getSceneElements, getSceneElementsIncludingDeleted } = ctx.api;
+    const live = getSceneElementsIncludingDeleted();
+    const existing = getSceneElements();
+
+    const anchorX = Math.min(...converted.map((element) => element.x));
+    const anchorY = Math.min(...converted.map((element) => element.y));
+
+    // Empty canvas: drop the diagram where the user is looking, otherwise it
+    // lands on the origin and may be outside the viewport entirely.
+    // Non-empty canvas: to the right of the existing content.
+    const box = bounds(existing);
+    let targetX = 0;
+    let targetY = 0;
+    if (box) {
+      targetX = box.maxX + 100;
+      targetY = box.minY;
+    } else {
+      try {
+        const appState = ctx.api.getAppState();
+        const topLeft = viewportCoordsToSceneCoords(
+          { clientX: 0, clientY: 0 },
+          appState,
+        );
+        targetX = topLeft.x + 60 / (appState.zoom?.value || 1);
+        targetY = topLeft.y + 60 / (appState.zoom?.value || 1);
+      } catch {
+        targetX = 0;
+        targetY = 0;
+      }
+    }
+
+    const offsetX =
+      typeof args.x === "number" ? args.x - anchorX : targetX - anchorX;
+    const offsetY =
+      typeof args.y === "number" ? args.y - anchorY : targetY - anchorY;
+
+    const placed = converted.map((element) =>
+      offsetX || offsetY
+        ? { ...element, x: element.x + offsetX, y: element.y + offsetY }
+        : element,
+    );
+
+    ctx.api.updateScene({
+      elements: [...live, ...placed],
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+
+    const snapshot = ctx.scene.sync();
+    ctx.session.expectedRev = snapshot.rev;
+
+    const placedBox = bounds(placed);
+    return {
+      content: [
+        `已插入 ${placed.length} 个元素（${typeStats(placed)}）。`,
+        placedBox
+          ? `位置：x ${placedBox.minX}..${placedBox.maxX}, y ${
+              placedBox.minY
+            }..${placedBox.maxY}（宽 ${placedBox.maxX - placedBox.minX}，高 ${
+              placedBox.maxY - placedBox.minY
+            }）`
+          : "",
+        `画布现在共 ${snapshot.lines.length} 个元素（第 ${
+          snapshot.lines.length - placed.length + 1
+        }..${snapshot.lines.length} 行是新插入的）。`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    };
+  },
+};
+
 export const canvasTools: Tool[] = [
   readCanvas,
   writeCanvas,
+  insertDiagram,
   readSelection,
   replaceSelection,
 ];

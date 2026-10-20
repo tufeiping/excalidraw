@@ -781,6 +781,9 @@
   },
   "agent": {
     "title": "AI 助手",
+    "setupTitle": "未配置 LLM 服务",
+    "setupBody": "填写 API Key 后即可使用，密钥只保存在本机浏览器里。",
+    "setupModel": "模型：{{model}}",
     "badgeAi": "AI",
     "badgeYou": "你",
     "labelYou": "你",

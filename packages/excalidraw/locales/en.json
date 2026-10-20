@@ -783,6 +783,9 @@
   },
   "agent": {
     "title": "AI assistant",
+    "setupTitle": "LLM service not configured",
+    "setupBody": "Add an API key to start using the assistant. The key is stored only in this browser.",
+    "setupModel": "Model: {{model}}",
     "badgeAi": "AI",
     "badgeYou": "YOU",
     "labelYou": "You",

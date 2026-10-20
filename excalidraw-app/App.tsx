@@ -960,6 +960,11 @@ const ExcalidrawWrapper = () => {
           },
         }}
         langCode={langCode}
+        // FlyLaTeX: the AI assistant panel is the only AI surface, so the
+        // upstream "AI 生成" toolbar entry, the frame→code action, the AI
+        // command-palette entries and the "text to diagram" tab are all off.
+        // The manual Mermaid converter stays (it needs no LLM).
+        aiEnabled={false}
         renderCustomStats={renderCustomStats}
         detectScroll={false}
         handleKeyboardGlobally={true}
@@ -1020,7 +1025,7 @@ const ExcalidrawWrapper = () => {
           {/* FlyLaTeX: "Export to Excalidraw+" action removed */}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        <AIComponents />
         {excalidrawAPI && <AISettings excalidrawAPI={excalidrawAPI} />}
         {excalidrawAPI && (
           <AgentPanel

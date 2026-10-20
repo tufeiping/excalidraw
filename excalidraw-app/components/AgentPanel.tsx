@@ -19,6 +19,7 @@ import {
   savePanelWidth,
 } from "../agent/panelWidth";
 import { useAgent } from "../agent/useAgent";
+import { AI_KEY_CHANGED_EVENT, getAiApiKey, getAiModel } from "../runtimeEnv";
 
 import "./AgentPanel.scss";
 
@@ -422,6 +423,7 @@ export const AgentPanel = ({
   const [showHistory, setShowHistory] = useState(false);
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
   const [resizing, setResizing] = useState(false);
+  const [configured, setConfigured] = useState(() => Boolean(getAiApiKey()));
   const [elementCount, setElementCount] = useState(
     () => excalidrawAPI?.getSceneElements().length ?? 0,
   );
@@ -459,6 +461,29 @@ export const AgentPanel = ({
     }
     setElementCount(excalidrawAPI?.getSceneElements().length ?? 0);
   }, [excalidrawAPI, open, items, appState.selectedElementIds]);
+
+  // the key can be added or cleared at any time (settings dialog, another tab)
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const refresh = () => setConfigured(Boolean(getAiApiKey()));
+    refresh();
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || /api-key|excalidraw-agent/.test(event.key)) {
+        refresh();
+      }
+    };
+    const onKeyChanged = () => refresh();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", refresh);
+    window.addEventListener(AI_KEY_CHANGED_EVENT, onKeyChanged);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener(AI_KEY_CHANGED_EVENT, onKeyChanged);
+    };
+  }, [open, appState.openDialog]);
 
   useEffect(() => {
     const node = messagesRef.current;
@@ -548,6 +573,12 @@ export const AgentPanel = ({
     stickToBottomRef.current =
       node.scrollHeight - node.scrollTop - node.clientHeight < 80;
   }, []);
+
+  const openSettings = useCallback(() => {
+    excalidrawAPI?.updateScene({
+      appState: { openDialog: { name: "settings" } },
+    });
+  }, [excalidrawAPI]);
 
   const submit = useCallback(() => {
     if (running) {
@@ -655,6 +686,30 @@ export const AgentPanel = ({
         </button>
       </div>
 
+      {!configured && !showHistory ? (
+        <div className="agent-panel__setup">
+          <div className="agent-panel__setup-head">
+            <span className="agent-panel__setup-dot" />
+            <span className="agent-panel__setup-title">
+              {t("agent.setupTitle")}
+            </span>
+          </div>
+          <div className="agent-panel__setup-body">{t("agent.setupBody")}</div>
+          <div className="agent-panel__setup-foot">
+            <span className="agent-panel__setup-meta">
+              {t("agent.setupModel", { model: getAiModel() })}
+            </span>
+            <button
+              type="button"
+              className="agent-panel__button agent-panel__button--primary"
+              onClick={openSettings}
+            >
+              {t("agent.openSettings")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {showHistory ? (
         <HistoryList
           chats={chats}
@@ -738,9 +793,7 @@ export const AgentPanel = ({
               className="agent-panel__button"
               onClick={() => {
                 dismissError();
-                excalidrawAPI?.updateScene({
-                  appState: { openDialog: { name: "settings" } },
-                });
+                openSettings();
               }}
             >
               {t("agent.openSettings")}

@@ -26,7 +26,7 @@ import type {
 export const TTDDialog = (
   props:
     | {
-        onTextSubmit: TTTDDialog.onTextSubmit;
+        onTextSubmit?: TTTDDialog.onTextSubmit;
         renderWelcomeScreen?: TTTDDialog.renderWelcomeScreen;
         renderWarning?: TTTDDialog.renderWarning;
         persistenceAdapter: TTDPersistenceAdapter;
@@ -56,7 +56,7 @@ const TTDDialogBase = withInternalFallback(
     tab: "text-to-diagram" | "mermaid";
   } & (
     | {
-        onTextSubmit(
+        onTextSubmit?(
           props: TTTDDialog.OnTextSubmitProps,
         ): Promise<TTTDDialog.OnTextSubmitRetValue>;
         renderWelcomeScreen?: TTTDDialog.renderWelcomeScreen;
@@ -66,6 +66,10 @@ const TTDDialogBase = withInternalFallback(
     | { __fallback: true }
   )) => {
     const app = useApp();
+    // the host app can opt out of AI entirely; the Mermaid converter is not AI
+    const textToDiagramTab =
+      app.props.aiEnabled !== false &&
+      ("__fallback" in rest || !!rest.onTextSubmit);
 
     const [mermaidToExcalidrawLib, setMermaidToExcalidrawLib] =
       useState<MermaidToExcalidrawLibProps>({
@@ -92,26 +96,28 @@ const TTDDialogBase = withInternalFallback(
         {...rest}
         autofocus={false}
       >
-        <TTDDialogTabs dialog="ttd" tab={tab}>
+        <TTDDialogTabs dialog="ttd" tab={textToDiagramTab ? tab : "mermaid"}>
           {"__fallback" in rest && rest.__fallback ? (
             <p className="dialog-mermaid-title">{t("mermaid.title")}</p>
           ) : (
             <TTDDialogTabTriggers>
-              <TTDDialogTabTrigger tab="text-to-diagram">
-                <div className="ttd-dialog-tab-trigger__content">
-                  {t("labels.textToDiagram")}
-                  <div className="ttd-dialog-tab-trigger__badge">
-                    {t("chat.aiBeta")}
+              {textToDiagramTab && (
+                <TTDDialogTabTrigger tab="text-to-diagram">
+                  <div className="ttd-dialog-tab-trigger__content">
+                    {t("labels.textToDiagram")}
+                    <div className="ttd-dialog-tab-trigger__badge">
+                      {t("chat.aiBeta")}
+                    </div>
                   </div>
-                </div>
-              </TTDDialogTabTrigger>
+                </TTDDialogTabTrigger>
+              )}
               <TTDDialogTabTrigger tab="mermaid">
                 {t("mermaid.label")}
               </TTDDialogTabTrigger>
             </TTDDialogTabTriggers>
           )}
 
-          {!("__fallback" in rest) && (
+          {!("__fallback" in rest) && textToDiagramTab && rest.onTextSubmit && (
             <TTDDialogTab className="ttd-dialog-content" tab="text-to-diagram">
               <TextToDiagram
                 mermaidToExcalidrawLib={mermaidToExcalidrawLib}
