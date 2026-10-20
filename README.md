@@ -4,6 +4,12 @@
 
 This is a fork of [Excalidraw](https://github.com/excalidraw/excalidraw) with some modifications to make it work with `FlyLaTeX`.
 
+## Architecture
+
+Self-hosted collaboration deployment (Nginx gateway + Docker internal network):
+
+![Excalidraw collaboration architecture](./screenshot.jpeg)
+
 ## Modifications
 
 - Adds support for the `flylatex` theme.
