@@ -1,29 +1,48 @@
 import clsx from "clsx";
-import { useAtom } from "jotai";
 import { useEffect, useRef } from "react";
+
+import {
+  applyDarkModeFilter,
+  THEME,
+  type ColorPaletteCustom,
+} from "@excalidraw/common";
+
+import type { Theme } from "@excalidraw/element/types";
+
+import { useAtom } from "../../editor-jotai";
+import { t } from "../../i18n";
+
+import HotkeyLabel from "./HotkeyLabel";
 import {
   activeColorPickerSectionAtom,
   getColorNameAndShadeFromColor,
 } from "./colorPickerUtils";
-import HotkeyLabel from "./HotkeyLabel";
-import { t } from "../../i18n";
-import type { ColorPaletteCustom } from "../../colors";
+import { useColorPickerDnD } from "./colorTopPicksDnD";
 
 interface ShadeListProps {
-  hex: string;
+  theme: Theme;
+  color: string | null;
   onChange: (color: string) => void;
   palette: ColorPaletteCustom;
+  showHotKey?: boolean;
 }
 
-export const ShadeList = ({ hex, onChange, palette }: ShadeListProps) => {
+export const ShadeList = ({
+  theme,
+  color,
+  onChange,
+  palette,
+  showHotKey,
+}: ShadeListProps) => {
   const colorObj = getColorNameAndShadeFromColor({
-    color: hex || "transparent",
+    color: color || "transparent",
     palette,
   });
 
   const [activeColorPickerSection, setActiveColorPickerSection] = useAtom(
     activeColorPickerSectionAtom,
   );
+  const dnd = useColorPickerDnD();
 
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -41,32 +60,45 @@ export const ShadeList = ({ hex, onChange, palette }: ShadeListProps) => {
     if (Array.isArray(shades)) {
       return (
         <div className="color-picker-content--default shades">
-          {shades.map((color, i) => (
-            <button
-              ref={
-                i === shade && activeColorPickerSection === "shades"
-                  ? btnRef
-                  : undefined
-              }
-              tabIndex={-1}
-              key={i}
-              type="button"
-              className={clsx(
-                "color-picker__button color-picker__button--large",
-                { active: i === shade },
-              )}
-              aria-label="Shade"
-              title={`${colorName} - ${i + 1}`}
-              style={color ? { "--swatch-color": color } : undefined}
-              onClick={() => {
-                onChange(color);
-                setActiveColorPickerSection("shades");
-              }}
-            >
-              <div className="color-picker__button-outline" />
-              <HotkeyLabel color={color} keyLabel={i + 1} isShade />
-            </button>
-          ))}
+          {shades.map((color, i) => {
+            const displayColor = applyDarkModeFilter(
+              color,
+              theme === THEME.DARK,
+            );
+            return (
+              <button
+                ref={
+                  i === shade && activeColorPickerSection === "shades"
+                    ? btnRef
+                    : undefined
+                }
+                tabIndex={-1}
+                key={i}
+                type="button"
+                className={clsx(
+                  "color-picker__button color-picker__button--large",
+                  {
+                    active: i === shade,
+                  },
+                )}
+                aria-label="Shade"
+                title={`${colorName} - ${i + 1}`}
+                style={color ? { "--swatch-color": displayColor } : undefined}
+                onClick={() => {
+                  onChange(color);
+                  setActiveColorPickerSection("shades");
+                }}
+                onPointerDown={
+                  dnd ? (event) => dnd.startSourceDrag(event, color) : undefined
+                }
+              >
+                <div className="color-picker__button-outline" />
+                {showHotKey && (
+                  <HotkeyLabel color={displayColor} keyLabel={i + 1} isShade />
+                )}
+              </button>
+            );
+          })}
         </div>
       );
     }

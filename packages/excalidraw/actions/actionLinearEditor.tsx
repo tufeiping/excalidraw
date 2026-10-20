@@ -1,12 +1,28 @@
+import {
+  isElbowArrow,
+  isLinearElement,
+  isLineElement,
+} from "@excalidraw/element";
+import { arrayToMap, invariant } from "@excalidraw/common";
+
+import {
+  toggleLinePolygonState,
+  CaptureUpdateAction,
+} from "@excalidraw/element";
+
+import type {
+  ExcalidrawLinearElement,
+  ExcalidrawLineElement,
+} from "@excalidraw/element/types";
+
 import { DEFAULT_CATEGORIES } from "../components/CommandPalette/CommandPalette";
-import { LinearElementEditor } from "../element/linearElementEditor";
-import { isLinearElement } from "../element/typeChecks";
-import type { ExcalidrawLinearElement } from "../element/types";
-import { StoreAction } from "../store";
-import { register } from "./register";
-import { ToolButton } from "../components/ToolButton";
+import { IconButton } from "../components/IconButton";
+import { lineEditorIcon, polygonIcon } from "../components/icons";
 import { t } from "../i18n";
-import { lineEditorIcon } from "../components/icons";
+
+import { newElementWith } from "../../element/src/mutateElement";
+
+import { register } from "./register";
 
 export const actionToggleLinearEditor = register({
   name: "toggleLinearEditor",
@@ -27,30 +43,38 @@ export const actionToggleLinearEditor = register({
   predicate: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
     if (
-      !appState.editingLinearElement &&
+      !appState.selectedLinearElement?.isEditing &&
       selectedElements.length === 1 &&
-      isLinearElement(selectedElements[0])
+      isLinearElement(selectedElements[0]) &&
+      !isElbowArrow(selectedElements[0])
     ) {
       return true;
     }
     return false;
   },
   perform(elements, appState, _, app) {
-    const selectedElement = app.scene.getSelectedElements({
-      selectedElementIds: appState.selectedElementIds,
-      includeBoundTextElement: true,
-    })[0] as ExcalidrawLinearElement;
+    invariant(
+      appState.selectedLinearElement,
+      "No selected linear element found",
+    );
 
-    const editingLinearElement =
-      appState.editingLinearElement?.elementId === selectedElement.id
-        ? null
-        : new LinearElementEditor(selectedElement);
+    const selectedElement = app.scene.getElement(
+      appState.selectedLinearElement.elementId,
+    ) as ExcalidrawLinearElement | null;
+
+    invariant(selectedElement, "No selected element found");
+
+    const selectedLinearElement = {
+      ...appState.selectedLinearElement,
+      isEditing: !appState.selectedLinearElement.isEditing,
+    };
+
     return {
       appState: {
         ...appState,
-        editingLinearElement,
+        selectedLinearElement,
       },
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   PanelComponent: ({ appState, updateData, app }) => {
@@ -58,18 +82,130 @@ export const actionToggleLinearEditor = register({
       selectedElementIds: appState.selectedElementIds,
     })[0] as ExcalidrawLinearElement;
 
+    if (!selectedElement) {
+      return null;
+    }
+
     const label = t(
       selectedElement.type === "arrow"
         ? "labels.lineEditor.editArrow"
         : "labels.lineEditor.edit",
     );
     return (
-      <ToolButton
+      <IconButton
         type="button"
         icon={lineEditorIcon}
         title={label}
         aria-label={label}
         onClick={() => updateData(null)}
+      />
+    );
+  },
+});
+
+export const actionTogglePolygon = register({
+  name: "togglePolygon",
+  category: DEFAULT_CATEGORIES.elements,
+  icon: polygonIcon,
+  keywords: ["loop"],
+  label: (elements, appState, app) => {
+    const selectedElements = app.scene.getSelectedElements({
+      selectedElementIds: appState.selectedElementIds,
+    });
+
+    const allPolygons = !selectedElements.some(
+      (element) => !isLineElement(element) || !element.polygon,
+    );
+
+    return allPolygons
+      ? "labels.polygon.breakPolygon"
+      : "labels.polygon.convertToPolygon";
+  },
+  trackEvent: {
+    category: "element",
+  },
+  predicate: (elements, appState, _, app) => {
+    const selectedElements = app.scene.getSelectedElements({
+      selectedElementIds: appState.selectedElementIds,
+    });
+
+    return (
+      selectedElements.length > 0 &&
+      selectedElements.every(
+        (element) => isLineElement(element) && element.points.length >= 4,
+      )
+    );
+  },
+  perform(elements, appState, _, app) {
+    const selectedElements = app.scene.getSelectedElements(appState);
+
+    if (selectedElements.some((element) => !isLineElement(element))) {
+      return false;
+    }
+
+    const targetElements = selectedElements as ExcalidrawLineElement[];
+
+    // if one element not a polygon, convert all to polygon
+    const nextPolygonState = targetElements.some((element) => !element.polygon);
+
+    const targetElementsMap = arrayToMap(targetElements);
+
+    return {
+      elements: elements.map((element) => {
+        if (!targetElementsMap.has(element.id) || !isLineElement(element)) {
+          return element;
+        }
+
+        return newElementWith(element, {
+          backgroundColor: nextPolygonState
+            ? element.backgroundColor
+            : "transparent",
+          ...toggleLinePolygonState(element, nextPolygonState),
+        });
+      }),
+      appState,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    };
+  },
+  PanelComponent: ({ appState, updateData, app }) => {
+    const selectedElements = app.scene.getSelectedElements({
+      selectedElementIds: appState.selectedElementIds,
+    });
+
+    if (
+      selectedElements.length === 0 ||
+      selectedElements.some(
+        (element) =>
+          !isLineElement(element) ||
+          // only show polygon button if every selected element is already
+          // a polygon, effectively showing this button only to allow for
+          // disabling the polygon state
+          !element.polygon ||
+          element.points.length < 3,
+      )
+    ) {
+      return null;
+    }
+
+    const allPolygon = selectedElements.every(
+      (element) => isLineElement(element) && element.polygon,
+    );
+
+    const label = t(
+      allPolygon
+        ? "labels.polygon.breakPolygon"
+        : "labels.polygon.convertToPolygon",
+    );
+
+    return (
+      <IconButton
+        type="toggle"
+        icon={polygonIcon}
+        title={label}
+        aria-label={label}
+        checked={allPolygon}
+        onSelect={() => updateData(null)}
+        style={{ marginLeft: "auto" }}
       />
     );
   },

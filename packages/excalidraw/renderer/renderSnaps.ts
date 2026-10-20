@@ -1,9 +1,15 @@
-import { THEME } from "../constants";
+import { pointFrom, type GlobalPoint, type LocalPoint } from "@excalidraw/math";
+
+import { THEME } from "@excalidraw/common";
+
 import type { PointSnapLine, PointerSnapLine } from "../snapping";
-import type { InteractiveCanvasAppState, Point } from "../types";
+import type { InteractiveCanvasAppState } from "../types";
 
 const SNAP_COLOR_LIGHT = "#ff6b6b";
-const SNAP_COLOR_DARK = "#ff0000";
+// dark-mode colors are the equivalents of what the former CSS inversion filter
+// produced (see `applyDarkModeFilter`)
+const SNAP_COLOR_DARK = "#ff9090";
+const SNAP_COLOR_DARK_ZEN = "#da5b5b";
 const SNAP_WIDTH = 1;
 const SNAP_CROSS_SIZE = 2;
 
@@ -15,12 +21,13 @@ export const renderSnaps = (
     return;
   }
 
-  // in dark mode, we need to adjust the color to account for color inversion.
-  // Don't change if zen mode, because we draw only crosses, we want the
-  // colors to be more visible
+  // in zen mode we draw only crosses, so use a different color to keep them
+  // visible
   const snapColor =
-    appState.theme === THEME.LIGHT || appState.zenModeEnabled
+    appState.theme === THEME.LIGHT
       ? SNAP_COLOR_LIGHT
+      : appState.zenModeEnabled
+      ? SNAP_COLOR_DARK_ZEN
       : SNAP_COLOR_DARK;
   // in zen mode make the cross more visible since we don't draw the lines
   const snapWidth =
@@ -85,7 +92,7 @@ const drawPointerSnapLine = (
   }
 };
 
-const drawCross = (
+const drawCross = <Point extends LocalPoint | GlobalPoint>(
   [x, y]: Point,
   appState: InteractiveCanvasAppState,
   context: CanvasRenderingContext2D,
@@ -106,18 +113,18 @@ const drawCross = (
   context.restore();
 };
 
-const drawLine = (
+const drawLine = <Point extends LocalPoint | GlobalPoint>(
   from: Point,
   to: Point,
   context: CanvasRenderingContext2D,
 ) => {
   context.beginPath();
-  context.lineTo(...from);
-  context.lineTo(...to);
+  context.lineTo(from[0], from[1]);
+  context.lineTo(to[0], to[1]);
   context.stroke();
 };
 
-const drawGapLine = (
+const drawGapLine = <Point extends LocalPoint | GlobalPoint>(
   from: Point,
   to: Point,
   direction: "horizontal" | "vertical",
@@ -138,24 +145,32 @@ const drawGapLine = (
     const halfPoint = [(from[0] + to[0]) / 2, from[1]];
     // (1)
     if (!appState.zenModeEnabled) {
-      drawLine([from[0], from[1] - FULL], [from[0], from[1] + FULL], context);
+      drawLine(
+        pointFrom(from[0], from[1] - FULL),
+        pointFrom(from[0], from[1] + FULL),
+        context,
+      );
     }
 
     // (3)
     drawLine(
-      [halfPoint[0] - QUARTER, halfPoint[1] - HALF],
-      [halfPoint[0] - QUARTER, halfPoint[1] + HALF],
+      pointFrom(halfPoint[0] - QUARTER, halfPoint[1] - HALF),
+      pointFrom(halfPoint[0] - QUARTER, halfPoint[1] + HALF),
       context,
     );
     drawLine(
-      [halfPoint[0] + QUARTER, halfPoint[1] - HALF],
-      [halfPoint[0] + QUARTER, halfPoint[1] + HALF],
+      pointFrom(halfPoint[0] + QUARTER, halfPoint[1] - HALF),
+      pointFrom(halfPoint[0] + QUARTER, halfPoint[1] + HALF),
       context,
     );
 
     if (!appState.zenModeEnabled) {
       // (4)
-      drawLine([to[0], to[1] - FULL], [to[0], to[1] + FULL], context);
+      drawLine(
+        pointFrom(to[0], to[1] - FULL),
+        pointFrom(to[0], to[1] + FULL),
+        context,
+      );
 
       // (2)
       drawLine(from, to, context);
@@ -164,24 +179,32 @@ const drawGapLine = (
     const halfPoint = [from[0], (from[1] + to[1]) / 2];
     // (1)
     if (!appState.zenModeEnabled) {
-      drawLine([from[0] - FULL, from[1]], [from[0] + FULL, from[1]], context);
+      drawLine(
+        pointFrom(from[0] - FULL, from[1]),
+        pointFrom(from[0] + FULL, from[1]),
+        context,
+      );
     }
 
     // (3)
     drawLine(
-      [halfPoint[0] - HALF, halfPoint[1] - QUARTER],
-      [halfPoint[0] + HALF, halfPoint[1] - QUARTER],
+      pointFrom(halfPoint[0] - HALF, halfPoint[1] - QUARTER),
+      pointFrom(halfPoint[0] + HALF, halfPoint[1] - QUARTER),
       context,
     );
     drawLine(
-      [halfPoint[0] - HALF, halfPoint[1] + QUARTER],
-      [halfPoint[0] + HALF, halfPoint[1] + QUARTER],
+      pointFrom(halfPoint[0] - HALF, halfPoint[1] + QUARTER),
+      pointFrom(halfPoint[0] + HALF, halfPoint[1] + QUARTER),
       context,
     );
 
     if (!appState.zenModeEnabled) {
       // (4)
-      drawLine([to[0] - FULL, to[1]], [to[0] + FULL, to[1]], context);
+      drawLine(
+        pointFrom(to[0] - FULL, to[1]),
+        pointFrom(to[0] + FULL, to[1]),
+        context,
+      );
 
       // (2)
       drawLine(from, to, context);

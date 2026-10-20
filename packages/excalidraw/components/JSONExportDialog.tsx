@@ -1,19 +1,25 @@
 import React from "react";
-import type { NonDeletedExcalidrawElement } from "../element/types";
+
+import { getFrame } from "@excalidraw/common";
+
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+
+import { actionSaveFileToDisk } from "../actions/actionExport";
+
+import { trackEvent } from "../analytics";
+import { nativeFileSystemSupported } from "../data/filesystem";
 import { t } from "../i18n";
 
-import type { ExportOpts, BinaryFiles, UIAppState } from "../types";
-import { Dialog } from "./Dialog";
-import { exportToFileIcon, LinkIcon } from "./icons";
-import { ToolButton } from "./ToolButton";
-import { actionSaveFileToDisk } from "../actions/actionExport";
 import { Card } from "./Card";
+import { Dialog } from "./Dialog";
+import { IconButton } from "./IconButton";
+import { exportToFileIcon, LinkIcon } from "./icons";
 
 import "./ExportDialog.scss";
-import { nativeFileSystemSupported } from "../data/filesystem";
-import { trackEvent } from "../analytics";
+
 import type { ActionManager } from "../actions/manager";
-import { getFrame } from "../utils";
+
+import type { ExportOpts, BinaryFiles, UIAppState } from "../types";
 
 export type ExportCB = (
   elements: readonly NonDeletedExcalidrawElement[],
@@ -52,7 +58,7 @@ const JSONExportModal = ({
               {!nativeFileSystemSupported &&
                 actionManager.renderAction("changeProjectName")}
             </div>
-            <ToolButton
+            <IconButton
               className="Card-button"
               type="button"
               title={t("exportDialog.disk_button")}
@@ -69,7 +75,7 @@ const JSONExportModal = ({
             <div className="Card-icon">{LinkIcon}</div>
             <h2>{t("exportDialog.link_title")}</h2>
             <div className="Card-details">{t("exportDialog.link_details")}</div>
-            <ToolButton
+            <IconButton
               className="Card-button"
               type="button"
               title={t("exportDialog.link_button")}

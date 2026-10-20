@@ -27,6 +27,7 @@ clone the repository and install the dependencies.
 > Important: The node version must in [18.17.1] range.
 
 build the product with flow commands:
+
 ```bash
 yarn
 yarn build
@@ -67,13 +68,13 @@ Recommend to use node version **18.17.1**.
 #### Tips
 
 set the proxy:
+
 ```shell
 # for example, set the proxy to 7890 port
 yarn config set https-proxy http://127.0.0.1:7890
 ```
 
->[!IMPORTANT]
-> This project is one part of FlyLaTeX.
+> [!IMPORTANT] This project is one part of FlyLaTeX.
 
 > Main app in `excalidraw-app`, you need build it and copy `build` to nginx ROOT directory.
 
@@ -88,7 +89,7 @@ yarn config set https-proxy http://127.0.0.1:7890
 
 <h4 align="center">
   <a href="https://excalidraw.com">Excalidraw Editor</a> |
-  <a href="https://blog.excalidraw.com">Blog</a> |
+  <a href="https://plus.excalidraw.com/blog">Blog</a> |
   <a href="https://docs.excalidraw.com">Documentation</a> |
   <a href="https://plus.excalidraw.com">Excalidraw+</a>
 </h4>
@@ -104,20 +105,17 @@ yarn config set https-proxy http://127.0.0.1:7890
 <br />
 <p align="center">
   <a href="https://github.com/excalidraw/excalidraw/blob/master/LICENSE">
-    <img alt="Excalidraw is released under the MIT license." src="https://img.shields.io/badge/license-MIT-blue.svg"  />
-  </a>
+    <img alt="Excalidraw is released under the MIT license." src="https://img.shields.io/badge/license-MIT-blue.svg"  /></a>
   <a href="https://www.npmjs.com/package/@excalidraw/excalidraw">
-    <img alt="npm downloads/month" src="https://img.shields.io/npm/dm/@excalidraw/excalidraw"  />
-  </a>
+    <img alt="npm downloads/month" src="https://img.shields.io/npm/dm/@excalidraw/excalidraw"  /></a>
   <a href="https://docs.excalidraw.com/docs/introduction/contributing">
-    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"  />
-  </a>
+    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"  /></a>
   <a href="https://discord.gg/UexuTaE">
-    <img alt="Chat on Discord" src="https://img.shields.io/discord/723672430744174682?color=738ad6&label=Chat%20on%20Discord&logo=discord&logoColor=ffffff&widge=false"/>
-  </a>
+    <img alt="Chat on Discord" src="https://img.shields.io/discord/723672430744174682?color=738ad6&label=Chat%20on%20Discord&logo=discord&logoColor=ffffff&widget=false"/></a>
+  <a href="https://deepwiki.com/excalidraw/excalidraw">
+    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" /></a>
   <a href="https://twitter.com/excalidraw">
-    <img alt="Follow Excalidraw on Twitter" src="https://img.shields.io/twitter/follow/excalidraw.svg?label=follow+@excalidraw&style=social&logo=twitter"/>
-  </a>
+    <img alt="Follow Excalidraw on Twitter" src="https://img.shields.io/twitter/follow/excalidraw.svg?label=follow+@excalidraw&style=social&logo=twitter"/></a>
 </p>
 
 <div align="center">
@@ -144,7 +142,7 @@ The Excalidraw editor (npm package) supports:
 - 🏗️&nbsp;Customizable.
 - 📷&nbsp;Image support.
 - 😀&nbsp;Shape libraries support.
-- 👅&nbsp;Localization (i18n) support.
+- 🌐&nbsp;Localization (i18n) support.
 - 🖼️&nbsp;Export to PNG, SVG & clipboard.
 - 💾&nbsp;Open format - export drawings as an `.excalidraw` json file.
 - ⚒️&nbsp;Wide range of tools - rectangle, circle, diamond, arrow, line, free-draw, eraser...
@@ -168,13 +166,11 @@ We'll be adding these features as drop-in plugins for the npm package in the fut
 
 **Note:** following instructions are for installing the Excalidraw [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw) when integrating Excalidraw into your own app. To run the repository locally for development, please refer to our [Development Guide](https://docs.excalidraw.com/docs/introduction/development).
 
-```
+Use `npm` or `yarn` to install the package.
+
+```bash
 npm install react react-dom @excalidraw/excalidraw
-```
-
-or via yarn
-
-```
+# or
 yarn add react react-dom @excalidraw/excalidraw
 ```
 
@@ -211,10 +207,7 @@ Last but not least, we're thankful to these companies for offering their service
 
 ## Runtime configuration (collaboration / storage)
 
-The collaboration and scene-storage endpoints can be changed **without rebuilding** the
-image. At container start, `docker/99-excalidraw-runtime-config.sh` generates
-`/usr/share/nginx/html/whiteboard/runtime-config.js` from the following environment
-variables, and the app prefers these values over the build-time `.env.production` ones:
+The collaboration and scene-storage endpoints can be changed **without rebuilding** the image. At container start, `docker/99-excalidraw-runtime-config.sh` generates `/usr/share/nginx/html/whiteboard/runtime-config.js` from the following environment variables, and the app prefers these values over the build-time `.env.production` ones:
 
 | Variable | Description | Default |
 | --- | --- | --- |
@@ -258,23 +251,81 @@ location /whiteboard-socket.io/ {
 }
 ```
 
-If the storage backend does not implement the official `/api/v2/` + `/api/v2/post/`
-routes (for example `alswl/excalidraw-storage-backend` exposes `/scenes/` and `/scenes`),
-set the full URLs instead:
+If the storage backend does not implement the official `/api/v2/` + `/api/v2/post/` routes (for example `alswl/excalidraw-storage-backend` exposes `/scenes/` and `/scenes`), set the full URLs instead:
 
 ```yaml
-      EXCALIDRAW_BACKEND_GET_URL: https://www.flylatex.cn/whiteboard-api/api/v2/scenes/
-      EXCALIDRAW_BACKEND_POST_URL: https://www.flylatex.cn/whiteboard-api/api/v2/scenes
+EXCALIDRAW_BACKEND_GET_URL: https://www.flylatex.cn/whiteboard-api/api/v2/scenes/
+EXCALIDRAW_BACKEND_POST_URL: https://www.flylatex.cn/whiteboard-api/api/v2/scenes
 ```
 
 Notes:
 
-- `EXCALIDRAW_COLLAB_URL` must be an origin (`scheme://host[:port]`). A path would be
-  interpreted by `socket.io-client` as a namespace, which `excalidraw-room` does not serve.
-  The entrypoint strips the path and logs a warning if one is present.
-- Use `EXCALIDRAW_COLLAB_PATH` when the domain's default `/socket.io/` is already taken;
-  nginx must rewrite that path back to `/socket.io/` for the room server (see above).
-- `EXCALIDRAW_BACKEND_URL` is the full API base; include your unique path directly
-  (e.g. `/whiteboard-api/api/v2`). If you prefer origin + prefix instead, set
-  `EXCALIDRAW_BACKEND_API_PREFIX`; don't repeat the same path in both variables.
+- `EXCALIDRAW_COLLAB_URL` must be an origin (`scheme://host[:port]`). A path would be interpreted by `socket.io-client` as a namespace, which `excalidraw-room` does not serve. The entrypoint strips the path and logs a warning if one is present.
+- Use `EXCALIDRAW_COLLAB_PATH` when the domain's default `/socket.io/` is already taken; nginx must rewrite that path back to `/socket.io/` for the room server (see above).
+- `EXCALIDRAW_BACKEND_URL` is the full API base; include your unique path directly (e.g. `/whiteboard-api/api/v2`). If you prefer origin + prefix instead, set `EXCALIDRAW_BACKEND_API_PREFIX`; don't repeat the same path in both variables.
 - If no variables are set, the build-time values from `.env.production` are used.
+
+## AI (text-to-diagram) configuration
+
+The AI features are provider-agnostic. `VITE_APP_AI_PROVIDER` (build time) or `EXCALIDRAW_AI_PROVIDER` (runtime) selects the protocol:
+
+| Provider | Behaviour |
+| --- | --- |
+| `deepseek` (default in `.env.*`) | Calls an **OpenAI-compatible** `POST <base>/chat/completions` directly from the browser, streaming SSE. Users paste their own API key in **菜单 → AI 设置** (stored in `localStorage`, never sent anywhere but the AI provider). |
+| `excalidraw` | Talks to an excalidraw AI service (`/v1/ai/text-to-diagram/chat-streaming`, `/v1/ai/diagram-to-code/generate-streaming`), which additionally enables the wireframe → code plugin. |
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `EXCALIDRAW_AI_PROVIDER` | `deepseek` or `excalidraw` | `VITE_APP_AI_PROVIDER` |
+| `EXCALIDRAW_AI_BACKEND` | AI base URL, e.g. `https://api.deepseek.com` | `VITE_APP_AI_BACKEND` |
+| `EXCALIDRAW_AI_MODEL` | Model name, e.g. `deepseek-chat` | `VITE_APP_AI_MODEL` |
+| `EXCALIDRAW_AI_API_KEY` | Optional shared key injected at container start (used as a fallback when the visitor has not entered their own key) | — (users set their own key) |
+
+```yaml
+EXCALIDRAW_AI_PROVIDER: deepseek
+EXCALIDRAW_AI_BACKEND: https://api.deepseek.com
+EXCALIDRAW_AI_MODEL: deepseek-chat
+```
+
+Notes:
+
+- DeepSeek has no vision model, so with `deepseek` the _wireframe → code_ entry is hidden automatically (`DiagramToCodePlugin` is only registered for the `excalidraw` provider).
+- Any OpenAI-compatible gateway works (vLLM, OpenRouter, an internal proxy …) — point `EXCALIDRAW_AI_BACKEND` at it. A key injected via `EXCALIDRAW_AI_API_KEY` is visible to every visitor of the deployment, so prefer letting users enter their own key.
+
+## AI canvas agent (client-side)
+
+In addition to the text-to-diagram dialog, the right-hand **AI 助手** panel runs a tool-calling agent that reads and edits the live canvas. Everything happens in the browser — there is no server-side agent:
+
+```
+user message ─▶ runAgent() ─▶ POST <AI_BACKEND>/chat/completions (streaming SSE, tools)
+                    │  ▲
+        tool_calls  ▼  │  tool results
+                ToolRegistry ──▶ read_canvas / write_canvas / read_selection / replace_selection
+                    │
+                    ▼
+            localStorage snapshot ──▶ updateScene() (one undoable step)
+```
+
+### Tools
+
+| Tool | Purpose |
+| --- | --- |
+| `read_canvas` | Reads the canvas as numbered lines (`L12: {...}`, one element per line), paged (`offset`/`limit`, max 120 lines per call). |
+| `write_canvas` | Line-based editing: `replace` / `delete` / `insert` / `append` / `replace_all`. Lines are element JSON; existing elements are merged by `id` (partial patches allowed), new elements only need a `type`. All-or-nothing: one invalid line aborts the write. |
+| `read_selection` | Returns only the elements the user has selected and records a `selectionId` (element ids + z-order). |
+| `replace_selection` | Replaces exactly the recorded range, so "change _this_" never touches the rest of the canvas. Omitted elements are deleted, new lines are inserted in place, z-order is preserved. |
+
+Writes go through `buildElementsFromLines()` → `restoreElements()` (dimension and binding repair, text re-measuring/centering) and are applied with a single `updateScene({ captureUpdate: IMMEDIATELY })`, so the canvas never flickers and `Ctrl+Z` reverts the whole agent edit at once.
+
+### Conversation state
+
+| `localStorage` key | Contents |
+| --- | --- |
+| `excalidraw-agent-scene` | Line-numbered canvas snapshot (`rev`, `lines`, `ids`) the model reads, updated from the canvas before every read/write. |
+| `excalidraw-agent-chat` | Transcript (messages for the model + rendered items). Only the **last 10 user turns** (and ~60k characters) are sent to the model; older turns stay on screen but are dropped from the request. |
+
+Loop guard rails (see `excalidraw-app/agent/loop.ts`): max 16 iterations per turn, 12k characters per tool result, the same failing call is not retried more than twice, and a turn stops after 6 failed tool calls.
+
+The agent uses the same provider settings as text-to-diagram (`EXCALIDRAW_AI_*`, key from **AI 设置**), so `deepseek-chat` works out of the box; any OpenAI-compatible endpoint with tool-calling support (a local vLLM, an internal gateway, …) can be used by pointing `EXCALIDRAW_AI_BACKEND` / `EXCALIDRAW_AI_MODEL` at it.
+
+Agent modules live in `excalidraw-app/agent/` (`provider.ts`, `loop.ts`, `registry.ts`, `tools.ts`, `sceneView.ts`, `sceneStore.ts`, `chatStore.ts`, `useAgent.ts`); the panel is `excalidraw-app/components/AgentPanel.tsx`.

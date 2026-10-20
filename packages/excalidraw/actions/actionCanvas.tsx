@@ -1,6 +1,26 @@
-import { ColorPicker } from "../components/ColorPicker/ColorPicker";
 import {
-  handIcon,
+  DEFAULT_CANVAS_BACKGROUND_PICKS,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  THEME,
+  ZOOM_STEP,
+  CODES,
+  KEYS,
+} from "@excalidraw/common";
+
+import { getNonDeletedElements } from "@excalidraw/element";
+import { newElementWith } from "@excalidraw/element";
+import { getCommonBounds } from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type { Bounds } from "@excalidraw/common";
+
+import { getDefaultAppState } from "../appState";
+import { ColorPicker } from "../components/ColorPicker/ColorPicker";
+import { IconButton } from "../components/IconButton";
+import { Tooltip } from "../components/Tooltip";
+import {
   MoonIcon,
   SunIcon,
   TrashIcon,
@@ -9,40 +29,24 @@ import {
   ZoomOutIcon,
   ZoomResetIcon,
 } from "../components/icons";
-import { ToolButton } from "../components/ToolButton";
-import {
-  CURSOR_TYPE,
-  MAX_ZOOM,
-  MIN_ZOOM,
-  THEME,
-  ZOOM_STEP,
-} from "../constants";
-import { getCommonBounds, getNonDeletedElements } from "../element";
-import type { ExcalidrawElement } from "../element/types";
-import { t } from "../i18n";
-import { CODES, KEYS } from "../keys";
-import { getNormalizedZoom } from "../scene";
-import { centerScrollOn } from "../scene/scroll";
-import { getStateForZoom } from "../scene/zoom";
-import type { AppState, NormalizedZoomValue } from "../types";
-import { getShortcutKey, updateActiveTool } from "../utils";
-import { register } from "./register";
-import { Tooltip } from "../components/Tooltip";
-import { newElementWith } from "../element/mutateElement";
-import {
-  getDefaultAppState,
-  isEraserActive,
-  isHandToolActive,
-} from "../appState";
-import { DEFAULT_CANVAS_BACKGROUND_PICKS } from "../colors";
-import type { SceneBounds } from "../element/bounds";
-import { setCursor } from "../cursor";
-import { StoreAction } from "../store";
+import { useAppStateValue } from "../hooks/useAppStateValue";
 
-export const actionChangeViewBackgroundColor = register({
+import { t } from "../i18n";
+import { getNormalizedZoom } from "../scene";
+import {
+  constrainScrollState,
+  getViewportForZoomWithScrollConstraints,
+  zoomToFitBounds,
+} from "../viewport";
+import { getShortcutKey } from "../shortcut";
+
+import { register } from "./register";
+
+import type { AppState } from "../types";
+
+export const actionChangeViewBackgroundColor = register<Partial<AppState>>({
   name: "changeViewBackgroundColor",
   label: "labels.canvasBackground",
-  paletteName: "Change canvas background color",
   trackEvent: false,
   predicate: (elements, appState, props, app) => {
     return (
@@ -53,12 +57,12 @@ export const actionChangeViewBackgroundColor = register({
   perform: (_, appState, value) => {
     return {
       appState: { ...appState, ...value },
-      storeAction: !!value.viewBackgroundColor
-        ? StoreAction.CAPTURE
-        : StoreAction.NONE,
+      captureUpdate: !!value?.viewBackgroundColor
+        ? CaptureUpdateAction.IMMEDIATELY
+        : CaptureUpdateAction.EVENTUALLY,
     };
   },
-  PanelComponent: ({ elements, appState, updateData, appProps }) => {
+  PanelComponent: ({ elements, appState, updateData, appProps, data }) => {
     // FIXME move me to src/components/mainMenu/DefaultItems.tsx
     return (
       <ColorPicker
@@ -80,13 +84,13 @@ export const actionChangeViewBackgroundColor = register({
 export const actionClearCanvas = register({
   name: "clearCanvas",
   label: "labels.clearCanvas",
-  paletteName: "Clear canvas",
   icon: TrashIcon,
   trackEvent: { category: "canvas" },
   predicate: (elements, appState, props, app) => {
     return (
       !!app.props.UIOptions.canvasActions.clearCanvas &&
-      !appState.viewModeEnabled
+      !appState.viewModeEnabled &&
+      appState.openDialog?.name !== "elementLinkSelector"
     );
   },
   perform: (elements, appState, _, app) => {
@@ -104,14 +108,20 @@ export const actionClearCanvas = register({
         exportBackground: appState.exportBackground,
         exportEmbedScene: appState.exportEmbedScene,
         gridSize: appState.gridSize,
+        gridStep: appState.gridStep,
+        gridModeEnabled: appState.gridModeEnabled,
         stats: appState.stats,
-        pasteDialog: appState.pasteDialog,
+        colorTopPicks: appState.colorTopPicks,
+        fontTopPicks: appState.fontTopPicks,
         activeTool:
           appState.activeTool.type === "image"
-            ? { ...appState.activeTool, type: "selection" }
+            ? {
+                ...appState.activeTool,
+                type: app.state.preferredSelectionTool.type,
+              }
             : appState.activeTool,
       },
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
 });
@@ -120,38 +130,51 @@ export const actionZoomIn = register({
   name: "zoomIn",
   label: "buttons.zoomIn",
   viewMode: true,
+  navigation: true,
   icon: ZoomInIcon,
   trackEvent: { category: "canvas" },
+  predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
   perform: (_elements, appState, _, app) => {
+    app.requestUnfollow();
+    const nextState = {
+      ...appState,
+      ...getViewportForZoomWithScrollConstraints(
+        {
+          viewportX: appState.width / 2 + appState.offsetLeft,
+          viewportY: appState.height / 2 + appState.offsetTop,
+          nextZoom: getNormalizedZoom(appState.zoom.value + ZOOM_STEP),
+        },
+        appState,
+      ),
+    };
     return {
-      appState: {
-        ...appState,
-        ...getStateForZoom(
-          {
-            viewportX: appState.width / 2 + appState.offsetLeft,
-            viewportY: appState.height / 2 + appState.offsetTop,
-            nextZoom: getNormalizedZoom(appState.zoom.value + ZOOM_STEP),
-          },
-          appState,
-        ),
-        userToFollow: null,
-      },
-      storeAction: StoreAction.NONE,
+      appState: nextState,
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
-  PanelComponent: ({ updateData, appState }) => (
-    <ToolButton
-      type="button"
-      className="zoom-in-button zoom-button"
-      icon={ZoomInIcon}
-      title={`${t("buttons.zoomIn")} — ${getShortcutKey("CtrlOrCmd++")}`}
-      aria-label={t("buttons.zoomIn")}
-      disabled={appState.zoom.value >= MAX_ZOOM}
-      onClick={() => {
-        updateData(null);
-      }}
-    />
-  ),
+  PanelComponent: ({ updateData }) => {
+    const zoomValue = useAppStateValue((appState) => appState.zoom.value);
+    return (
+      <Tooltip
+        label={`${t("buttons.zoomIn")} — ${getShortcutKey("CtrlOrCmd++")}`}
+        className="zoom-in-button-wrapper"
+        delay
+      >
+        <IconButton
+          type="button"
+          className="zoom-in-button zoom-button"
+          icon={ZoomInIcon}
+          aria-label={t("buttons.zoomIn")}
+          // the shortcut used to reach AT via the (now removed) native title
+          aria-keyshortcuts={getShortcutKey("CtrlOrCmd++")}
+          disabled={zoomValue >= MAX_ZOOM}
+          onClick={() => {
+            updateData(null);
+          }}
+        />
+      </Tooltip>
+    );
+  },
   keyTest: (event) =>
     (event.code === CODES.EQUAL || event.code === CODES.NUM_ADD) &&
     (event[KEYS.CTRL_OR_CMD] || event.shiftKey),
@@ -162,37 +185,50 @@ export const actionZoomOut = register({
   label: "buttons.zoomOut",
   icon: ZoomOutIcon,
   viewMode: true,
+  navigation: true,
   trackEvent: { category: "canvas" },
+  predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
   perform: (_elements, appState, _, app) => {
+    app.requestUnfollow();
+    const nextState = {
+      ...appState,
+      ...getViewportForZoomWithScrollConstraints(
+        {
+          viewportX: appState.width / 2 + appState.offsetLeft,
+          viewportY: appState.height / 2 + appState.offsetTop,
+          nextZoom: getNormalizedZoom(appState.zoom.value - ZOOM_STEP),
+        },
+        appState,
+      ),
+    };
     return {
-      appState: {
-        ...appState,
-        ...getStateForZoom(
-          {
-            viewportX: appState.width / 2 + appState.offsetLeft,
-            viewportY: appState.height / 2 + appState.offsetTop,
-            nextZoom: getNormalizedZoom(appState.zoom.value - ZOOM_STEP),
-          },
-          appState,
-        ),
-        userToFollow: null,
-      },
-      storeAction: StoreAction.NONE,
+      appState: nextState,
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
-  PanelComponent: ({ updateData, appState }) => (
-    <ToolButton
-      type="button"
-      className="zoom-out-button zoom-button"
-      icon={ZoomOutIcon}
-      title={`${t("buttons.zoomOut")} — ${getShortcutKey("CtrlOrCmd+-")}`}
-      aria-label={t("buttons.zoomOut")}
-      disabled={appState.zoom.value <= MIN_ZOOM}
-      onClick={() => {
-        updateData(null);
-      }}
-    />
-  ),
+  PanelComponent: ({ updateData }) => {
+    const zoomValue = useAppStateValue((appState) => appState.zoom.value);
+    return (
+      <Tooltip
+        label={`${t("buttons.zoomOut")} — ${getShortcutKey("CtrlOrCmd+-")}`}
+        className="zoom-out-button-wrapper"
+        delay
+      >
+        <IconButton
+          type="button"
+          className="zoom-out-button zoom-button"
+          icon={ZoomOutIcon}
+          aria-label={t("buttons.zoomOut")}
+          // the shortcut used to reach AT via the (now removed) native title
+          aria-keyshortcuts={getShortcutKey("CtrlOrCmd+-")}
+          disabled={zoomValue <= MIN_ZOOM}
+          onClick={() => {
+            updateData(null);
+          }}
+        />
+      </Tooltip>
+    );
+  },
   keyTest: (event) =>
     (event.code === CODES.MINUS || event.code === CODES.NUM_SUBTRACT) &&
     (event[KEYS.CTRL_OR_CMD] || event.shiftKey),
@@ -203,167 +239,70 @@ export const actionResetZoom = register({
   label: "buttons.resetZoom",
   icon: ZoomResetIcon,
   viewMode: true,
+  navigation: true,
   trackEvent: { category: "canvas" },
+  predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
   perform: (_elements, appState, _, app) => {
+    app.requestUnfollow();
+    // reset to 100%, unless a zoom lock floors the zoom higher — then reset to
+    // the locked minimum zoom (the lock's resting zoom level)
+    const nextZoom = appState.scrollConstraints?.lockZoom
+      ? appState.scrollConstraints.zoom
+      : 1;
+    const nextState = {
+      ...appState,
+      ...getViewportForZoomWithScrollConstraints(
+        {
+          viewportX: appState.width / 2 + appState.offsetLeft,
+          viewportY: appState.height / 2 + appState.offsetTop,
+          nextZoom: getNormalizedZoom(nextZoom),
+        },
+        appState,
+      ),
+    };
     return {
-      appState: {
-        ...appState,
-        ...getStateForZoom(
-          {
-            viewportX: appState.width / 2 + appState.offsetLeft,
-            viewportY: appState.height / 2 + appState.offsetTop,
-            nextZoom: getNormalizedZoom(1),
-          },
-          appState,
-        ),
-        userToFollow: null,
-      },
-      storeAction: StoreAction.NONE,
+      appState: nextState,
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
-  PanelComponent: ({ updateData, appState }) => (
-    <Tooltip label={t("buttons.resetZoom")} style={{ height: "100%" }}>
-      <ToolButton
-        type="button"
-        className="reset-zoom-button zoom-button"
-        title={t("buttons.resetZoom")}
-        aria-label={t("buttons.resetZoom")}
-        onClick={() => {
-          updateData(null);
-        }}
+  PanelComponent: ({ updateData }) => {
+    const zoomValue = useAppStateValue((appState) => appState.zoom.value);
+    return (
+      <Tooltip
+        label={t("buttons.resetZoom")}
+        style={{ height: "100%" }}
+        className="reset-zoom-button-wrapper"
+        delay
       >
-        {(appState.zoom.value * 100).toFixed(0)}%
-      </ToolButton>
-    </Tooltip>
-  ),
+        <IconButton
+          type="button"
+          className="reset-zoom-button zoom-button"
+          aria-label={t("buttons.resetZoom")}
+          onClick={() => {
+            updateData(null);
+          }}
+        >
+          {(zoomValue * 100).toFixed(0)}%
+        </IconButton>
+      </Tooltip>
+    );
+  },
   keyTest: (event) =>
     (event.code === CODES.ZERO || event.code === CODES.NUM_ZERO) &&
     (event[KEYS.CTRL_OR_CMD] || event.shiftKey),
 });
 
-const zoomValueToFitBoundsOnViewport = (
-  bounds: SceneBounds,
-  viewportDimensions: { width: number; height: number },
+// under a viewport lock, zoom-to-fit targets the locked box rather than the
+// scene elements
+const getScrollConstraintsBounds = (
+  scrollConstraints: NonNullable<AppState["scrollConstraints"]>,
 ) => {
-  const [x1, y1, x2, y2] = bounds;
-  const commonBoundsWidth = x2 - x1;
-  const zoomValueForWidth = viewportDimensions.width / commonBoundsWidth;
-  const commonBoundsHeight = y2 - y1;
-  const zoomValueForHeight = viewportDimensions.height / commonBoundsHeight;
-  const smallestZoomValue = Math.min(zoomValueForWidth, zoomValueForHeight);
-  const zoomAdjustedToSteps =
-    Math.floor(smallestZoomValue / ZOOM_STEP) * ZOOM_STEP;
-  const clampedZoomValueToFitElements = Math.min(
-    Math.max(zoomAdjustedToSteps, MIN_ZOOM),
-    1,
-  );
-  return clampedZoomValueToFitElements as NormalizedZoomValue;
-};
-
-export const zoomToFitBounds = ({
-  bounds,
-  appState,
-  fitToViewport = false,
-  viewportZoomFactor = 0.7,
-}: {
-  bounds: SceneBounds;
-  appState: Readonly<AppState>;
-  /** whether to fit content to viewport (beyond >100%) */
-  fitToViewport: boolean;
-  /** zoom content to cover X of the viewport, when fitToViewport=true */
-  viewportZoomFactor?: number;
-}) => {
-  const [x1, y1, x2, y2] = bounds;
-  const centerX = (x1 + x2) / 2;
-  const centerY = (y1 + y2) / 2;
-
-  let newZoomValue;
-  let scrollX;
-  let scrollY;
-
-  if (fitToViewport) {
-    const commonBoundsWidth = x2 - x1;
-    const commonBoundsHeight = y2 - y1;
-
-    newZoomValue =
-      Math.min(
-        appState.width / commonBoundsWidth,
-        appState.height / commonBoundsHeight,
-      ) * Math.min(1, Math.max(viewportZoomFactor, 0.1));
-
-    // Apply clamping to newZoomValue to be between 10% and 3000%
-    newZoomValue = Math.min(
-      Math.max(newZoomValue, MIN_ZOOM),
-      MAX_ZOOM,
-    ) as NormalizedZoomValue;
-
-    let appStateWidth = appState.width;
-
-    if (appState.openSidebar) {
-      const sidebarDOMElem = document.querySelector(
-        ".sidebar",
-      ) as HTMLElement | null;
-      const sidebarWidth = sidebarDOMElem?.offsetWidth ?? 0;
-      const isRTL = document.documentElement.getAttribute("dir") === "rtl";
-
-      appStateWidth = !isRTL
-        ? appState.width - sidebarWidth
-        : appState.width + sidebarWidth;
-    }
-
-    scrollX = (appStateWidth / 2) * (1 / newZoomValue) - centerX;
-    scrollY = (appState.height / 2) * (1 / newZoomValue) - centerY;
-  } else {
-    newZoomValue = zoomValueToFitBoundsOnViewport(bounds, {
-      width: appState.width,
-      height: appState.height,
-    });
-
-    const centerScroll = centerScrollOn({
-      scenePoint: { x: centerX, y: centerY },
-      viewportDimensions: {
-        width: appState.width,
-        height: appState.height,
-      },
-      zoom: { value: newZoomValue },
-    });
-
-    scrollX = centerScroll.scrollX;
-    scrollY = centerScroll.scrollY;
-  }
-
-  return {
-    appState: {
-      ...appState,
-      scrollX,
-      scrollY,
-      zoom: { value: newZoomValue },
-    },
-    storeAction: StoreAction.NONE,
-  };
-};
-
-export const zoomToFit = ({
-  targetElements,
-  appState,
-  fitToViewport,
-  viewportZoomFactor,
-}: {
-  targetElements: readonly ExcalidrawElement[];
-  appState: Readonly<AppState>;
-  /** whether to fit content to viewport (beyond >100%) */
-  fitToViewport: boolean;
-  /** zoom content to cover X of the viewport, when fitToViewport=true */
-  viewportZoomFactor?: number;
-}) => {
-  const commonBounds = getCommonBounds(getNonDeletedElements(targetElements));
-
-  return zoomToFitBounds({
-    bounds: commonBounds,
-    appState,
-    fitToViewport,
-    viewportZoomFactor,
-  });
+  return [
+    scrollConstraints.x,
+    scrollConstraints.y,
+    scrollConstraints.x + scrollConstraints.width,
+    scrollConstraints.y + scrollConstraints.height,
+  ] as Bounds;
 };
 
 // Note, this action differs from actionZoomToFitSelection in that it doesn't
@@ -373,17 +312,35 @@ export const actionZoomToFitSelectionInViewport = register({
   name: "zoomToFitSelectionInViewport",
   label: "labels.zoomToFitViewport",
   icon: zoomAreaIcon,
+  // with no selection (as is always the case in view mode & when
+  // non-interactive), fits all elements, or the locked viewport box when
+  // a viewport lock is active
+  viewMode: true,
+  navigation: true,
   trackEvent: { category: "canvas" },
+  predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
   perform: (elements, appState, _, app) => {
+    app.requestUnfollow();
     const selectedElements = app.scene.getSelectedElements(appState);
-    return zoomToFit({
-      targetElements: selectedElements.length ? selectedElements : elements,
-      appState: {
-        ...appState,
-        userToFollow: null,
-      },
-      fitToViewport: false,
+    const bounds = selectedElements.length
+      ? getCommonBounds(getNonDeletedElements(selectedElements))
+      : appState.scrollConstraints
+      ? getScrollConstraintsBounds(appState.scrollConstraints)
+      : getCommonBounds(getNonDeletedElements(elements));
+    const result = zoomToFitBounds({
+      bounds,
+      appState,
+      fit: "scale-down",
+      canvasOffsets: app.viewport.getOffsets(),
     });
+    return {
+      ...result,
+      // re-clamp so the fit can't escape an active scroll/zoom lock
+      appState: {
+        ...result.appState,
+        ...constrainScrollState(result.appState),
+      },
+    };
   },
   // NOTE shift-2 should have been assigned actionZoomToFitSelection.
   // TBD on how proceed
@@ -398,17 +355,35 @@ export const actionZoomToFitSelection = register({
   name: "zoomToFitSelection",
   label: "helpDialog.zoomToSelection",
   icon: zoomAreaIcon,
+  // with no selection (as is always the case in view mode & when
+  // non-interactive), fits all elements, or the locked viewport box when
+  // a viewport lock is active
+  viewMode: true,
+  navigation: true,
   trackEvent: { category: "canvas" },
+  predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
   perform: (elements, appState, _, app) => {
+    app.requestUnfollow();
     const selectedElements = app.scene.getSelectedElements(appState);
-    return zoomToFit({
-      targetElements: selectedElements.length ? selectedElements : elements,
-      appState: {
-        ...appState,
-        userToFollow: null,
-      },
-      fitToViewport: true,
+    const bounds = selectedElements.length
+      ? getCommonBounds(getNonDeletedElements(selectedElements))
+      : appState.scrollConstraints
+      ? getScrollConstraintsBounds(appState.scrollConstraints)
+      : getCommonBounds(getNonDeletedElements(elements));
+    const result = zoomToFitBounds({
+      bounds,
+      appState,
+      fit: "contain",
+      canvasOffsets: app.viewport.getOffsets(),
     });
+    return {
+      ...result,
+      // re-clamp so the fit can't escape an active scroll/zoom lock
+      appState: {
+        ...result.appState,
+        ...constrainScrollState(result.appState),
+      },
+    };
   },
   // NOTE this action should use shift-2 per figma, alas
   keyTest: (event) =>
@@ -423,16 +398,30 @@ export const actionZoomToFit = register({
   label: "helpDialog.zoomToFit",
   icon: zoomAreaIcon,
   viewMode: true,
+  navigation: true,
   trackEvent: { category: "canvas" },
-  perform: (elements, appState) =>
-    zoomToFit({
-      targetElements: elements,
+  predicate: (elements, appState, appProps, app) => app.isNavigationEnabled(),
+  perform: (elements, appState, _, app) => {
+    app.requestUnfollow();
+    // under a viewport lock, fits the locked box rather than the elements
+    const bounds = appState.scrollConstraints
+      ? getScrollConstraintsBounds(appState.scrollConstraints)
+      : getCommonBounds(getNonDeletedElements(elements));
+    const result = zoomToFitBounds({
+      bounds,
+      appState,
+      fit: "scale-down",
+      canvasOffsets: app.viewport.getOffsets(),
+    });
+    return {
+      ...result,
+      // re-clamp so the fit can't escape an active scroll/zoom lock
       appState: {
-        ...appState,
-        userToFollow: null,
+        ...result.appState,
+        ...constrainScrollState(result.appState),
       },
-      fitToViewport: false,
-    }),
+    };
+  },
   keyTest: (event) =>
     event.code === CODES.ONE &&
     event.shiftKey &&
@@ -440,7 +429,7 @@ export const actionZoomToFit = register({
     !event[KEYS.CTRL_OR_CMD],
 });
 
-export const actionToggleTheme = register({
+export const actionToggleTheme = register<AppState["theme"]>({
   name: "toggleTheme",
   label: (_, appState) => {
     return appState.theme === THEME.DARK
@@ -448,96 +437,33 @@ export const actionToggleTheme = register({
       : "buttons.darkMode";
   },
   keywords: ["toggle", "dark", "light", "mode", "theme"],
-  icon: (appState) => (appState.theme === THEME.LIGHT ? MoonIcon : SunIcon),
+  icon: (appState, elements) =>
+    appState.theme === THEME.LIGHT ? MoonIcon : SunIcon,
   viewMode: true,
   trackEvent: { category: "canvas" },
-  perform: (_, appState, value) => {
-    return {
-      appState: {
-        ...appState,
-        theme:
-          value || (appState.theme === THEME.LIGHT ? THEME.DARK : THEME.LIGHT),
-      },
-      storeAction: StoreAction.NONE,
-    };
-  },
-  keyTest: (event) => event.altKey && event.shiftKey && event.code === CODES.D,
-  predicate: (elements, appState, props, app) => {
-    return !!app.props.UIOptions.canvasActions.toggleTheme;
-  },
-});
+  perform: (_, appState, value, app) => {
+    const nextTheme =
+      value || (appState.theme === THEME.LIGHT ? THEME.DARK : THEME.LIGHT);
 
-export const actionToggleEraserTool = register({
-  name: "toggleEraserTool",
-  label: "toolBar.eraser",
-  trackEvent: { category: "toolbar" },
-  perform: (elements, appState) => {
-    let activeTool: AppState["activeTool"];
-
-    if (isEraserActive(appState)) {
-      activeTool = updateActiveTool(appState, {
-        ...(appState.activeTool.lastActiveTool || {
-          type: "selection",
-        }),
-        lastActiveToolBeforeEraser: null,
-      });
-    } else {
-      activeTool = updateActiveTool(appState, {
-        type: "eraser",
-        lastActiveToolBeforeEraser: appState.activeTool,
-      });
+    if (app.props.onThemeChange) {
+      app.props.onThemeChange(nextTheme);
+      return false;
     }
 
     return {
       appState: {
         ...appState,
-        selectedElementIds: {},
-        selectedGroupIds: {},
-        activeEmbeddable: null,
-        activeTool,
+        theme: nextTheme,
       },
-      storeAction: StoreAction.CAPTURE,
-    };
-  },
-  keyTest: (event) => event.key === KEYS.E,
-});
-
-export const actionToggleHandTool = register({
-  name: "toggleHandTool",
-  label: "toolBar.hand",
-  paletteName: "Toggle hand tool",
-  trackEvent: { category: "toolbar" },
-  icon: handIcon,
-  viewMode: false,
-  perform: (elements, appState, _, app) => {
-    let activeTool: AppState["activeTool"];
-
-    if (isHandToolActive(appState)) {
-      activeTool = updateActiveTool(appState, {
-        ...(appState.activeTool.lastActiveTool || {
-          type: "selection",
-        }),
-        lastActiveToolBeforeEraser: null,
-      });
-    } else {
-      activeTool = updateActiveTool(appState, {
-        type: "hand",
-        lastActiveToolBeforeEraser: appState.activeTool,
-      });
-      setCursor(app.interactiveCanvas, CURSOR_TYPE.GRAB);
-    }
-
-    return {
-      appState: {
-        ...appState,
-        selectedElementIds: {},
-        selectedGroupIds: {},
-        activeEmbeddable: null,
-        activeTool,
-      },
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
   keyTest: (event) =>
-    !event.altKey && !event[KEYS.CTRL_OR_CMD] && event.key === KEYS.H,
+    !event[KEYS.CTRL_OR_CMD] &&
+    event.altKey &&
+    event.shiftKey &&
+    event.code === CODES.D,
+  predicate: (elements, appState, props, app) => {
+    return !!app.props.UIOptions.canvasActions.toggleTheme;
+  },
 });

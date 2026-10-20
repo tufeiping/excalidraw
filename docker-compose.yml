@@ -1,20 +1,19 @@
-version: "3.8"
-
 services:
   excalidraw:
     build:
       context: .
+      # the app is built inside the image (multi-stage Dockerfile), so it must
+      # be a production build
       args:
-        - NODE_ENV=development
+        - NODE_ENV=production
     container_name: excalidraw
     ports:
       - "3000:80"
     restart: on-failure
-    stdin_open: true
     healthcheck:
       disable: true
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       # Optional runtime overrides (no rebuild needed); see README
       - EXCALIDRAW_COLLAB_URL=${EXCALIDRAW_COLLAB_URL:-}
       - EXCALIDRAW_COLLAB_PATH=${EXCALIDRAW_COLLAB_PATH:-}
@@ -22,11 +21,7 @@ services:
       - EXCALIDRAW_BACKEND_API_PREFIX=${EXCALIDRAW_BACKEND_API_PREFIX:-}
       - EXCALIDRAW_BACKEND_GET_URL=${EXCALIDRAW_BACKEND_GET_URL:-}
       - EXCALIDRAW_BACKEND_POST_URL=${EXCALIDRAW_BACKEND_POST_URL:-}
-    volumes:
-      - ./:/opt/node_app/app:delegated
-      - ./package.json:/opt/node_app/package.json
-      - ./yarn.lock:/opt/node_app/yarn.lock
-      - notused:/opt/node_app/app/node_modules
-
-volumes:
-  notused:
+      - EXCALIDRAW_AI_PROVIDER=${EXCALIDRAW_AI_PROVIDER:-}
+      - EXCALIDRAW_AI_BACKEND=${EXCALIDRAW_AI_BACKEND:-}
+      - EXCALIDRAW_AI_MODEL=${EXCALIDRAW_AI_MODEL:-}
+      - EXCALIDRAW_AI_API_KEY=${EXCALIDRAW_AI_API_KEY:-}

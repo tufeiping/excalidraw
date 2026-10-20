@@ -1,64 +1,35 @@
-import { Dialog } from "../Dialog";
-import { useApp, useExcalidrawSetAppState } from "../App";
-import MermaidToExcalidraw from "./MermaidToExcalidraw";
-import TTDDialogTabs from "./TTDDialogTabs";
-import type { ChangeEventHandler } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
 import { useUIAppState } from "../../context/ui-appState";
+import { t } from "../../i18n";
+import { useApp } from "../App";
+import { Dialog } from "../Dialog";
 import { withInternalFallback } from "../hoc/withInternalFallback";
+
+import MermaidToExcalidraw from "./MermaidToExcalidraw";
+import TextToDiagram from "./TextToDiagram";
+import TTDDialogTabs from "./TTDDialogTabs";
 import { TTDDialogTabTriggers } from "./TTDDialogTabTriggers";
 import { TTDDialogTabTrigger } from "./TTDDialogTabTrigger";
 import { TTDDialogTab } from "./TTDDialogTab";
-import { t } from "../../i18n";
-import { TTDDialogInput } from "./TTDDialogInput";
-import { TTDDialogOutput } from "./TTDDialogOutput";
-import { TTDDialogPanel } from "./TTDDialogPanel";
-import { TTDDialogPanels } from "./TTDDialogPanels";
-import type { MermaidToExcalidrawLibProps } from "./common";
-import {
-  convertMermaidToExcalidraw,
-  insertToEditor,
-  saveMermaidDataToStorage,
-} from "./common";
-import type { NonDeletedExcalidrawElement } from "../../element/types";
-import type { BinaryFiles } from "../../types";
-import { ArrowRightIcon } from "../icons";
 
 import "./TTDDialog.scss";
-import { isFiniteNumber } from "../../utils";
-import { atom, useAtom } from "jotai";
-import { trackEvent } from "../../analytics";
-import { InlineIcon } from "../InlineIcon";
-import { TTDDialogSubmitShortcut } from "./TTDDialogSubmitShortcut";
 
-const MIN_PROMPT_LENGTH = 3;
-const MAX_PROMPT_LENGTH = 1000;
+import { TTDWelcomeMessage } from "./TTDWelcomeMessage";
 
-const rateLimitsAtom = atom<{
-  rateLimit: number;
-  rateLimitRemaining: number;
-} | null>(null);
-
-const ttdGenerationAtom = atom<{
-  generatedResponse: string | null;
-  prompt: string | null;
-} | null>(null);
-
-type OnTestSubmitRetValue = {
-  rateLimit?: number | null;
-  rateLimitRemaining?: number | null;
-} & (
-  | { generatedResponse: string | undefined; error?: null | undefined }
-  | {
-      error: Error;
-      generatedResponse?: null | undefined;
-    }
-);
+import type {
+  MermaidToExcalidrawLibProps,
+  TTDPersistenceAdapter,
+  TTTDDialog,
+} from "./types";
 
 export const TTDDialog = (
   props:
     | {
-        onTextSubmit(value: string): Promise<OnTestSubmitRetValue>;
+        onTextSubmit: TTTDDialog.onTextSubmit;
+        renderWelcomeScreen?: TTTDDialog.renderWelcomeScreen;
+        renderWarning?: TTTDDialog.renderWarning;
+        persistenceAdapter: TTDPersistenceAdapter;
       }
     | { __fallback: true },
 ) => {
@@ -71,10 +42,12 @@ export const TTDDialog = (
   return <TTDDialogBase {...props} tab={appState.openDialog.tab} />;
 };
 
+TTDDialog.WelcomeMessage = TTDWelcomeMessage;
+
 /**
  * Text to diagram (TTD) dialog
  */
-export const TTDDialogBase = withInternalFallback(
+const TTDDialogBase = withInternalFallback(
   "TTDDialogBase",
   ({
     tab,
@@ -83,127 +56,16 @@ export const TTDDialogBase = withInternalFallback(
     tab: "text-to-diagram" | "mermaid";
   } & (
     | {
-        onTextSubmit(value: string): Promise<OnTestSubmitRetValue>;
+        onTextSubmit(
+          props: TTTDDialog.OnTextSubmitProps,
+        ): Promise<TTTDDialog.OnTextSubmitRetValue>;
+        renderWelcomeScreen?: TTTDDialog.renderWelcomeScreen;
+        renderWarning?: TTTDDialog.renderWarning;
+        persistenceAdapter: TTDPersistenceAdapter;
       }
     | { __fallback: true }
   )) => {
     const app = useApp();
-    const setAppState = useExcalidrawSetAppState();
-
-    const someRandomDivRef = useRef<HTMLDivElement>(null);
-
-    const [ttdGeneration, setTtdGeneration] = useAtom(ttdGenerationAtom);
-
-    const [text, setText] = useState(ttdGeneration?.prompt ?? "");
-
-    const prompt = text.trim();
-
-    const handleTextChange: ChangeEventHandler<HTMLTextAreaElement> = (
-      event,
-    ) => {
-      setText(event.target.value);
-      setTtdGeneration((s) => ({
-        generatedResponse: s?.generatedResponse ?? null,
-        prompt: event.target.value,
-      }));
-    };
-
-    const [onTextSubmitInProgess, setOnTextSubmitInProgess] = useState(false);
-    const [rateLimits, setRateLimits] = useAtom(rateLimitsAtom);
-
-    const onGenerate = async () => {
-      if (
-        prompt.length > MAX_PROMPT_LENGTH ||
-        prompt.length < MIN_PROMPT_LENGTH ||
-        onTextSubmitInProgess ||
-        rateLimits?.rateLimitRemaining === 0 ||
-        // means this is not a text-to-diagram dialog (needed for TS only)
-        "__fallback" in rest
-      ) {
-        if (prompt.length < MIN_PROMPT_LENGTH) {
-          setError(
-            new Error(
-              `提示词太短 (最小 ${MIN_PROMPT_LENGTH} 字符)`,
-            ),
-          );
-        }
-        if (prompt.length > MAX_PROMPT_LENGTH) {
-          setError(
-            new Error(
-              `提示词太长了 (最大支持 ${MAX_PROMPT_LENGTH} 字符)`,
-            ),
-          );
-        }
-
-        return;
-      }
-
-      try {
-        setOnTextSubmitInProgess(true);
-
-        trackEvent("ai", "generate", "ttd");
-
-        const { generatedResponse, error, rateLimit, rateLimitRemaining } =
-          await rest.onTextSubmit(prompt);
-
-        if (typeof generatedResponse === "string") {
-          setTtdGeneration((s) => ({
-            generatedResponse,
-            prompt: s?.prompt ?? null,
-          }));
-        }
-
-        if (isFiniteNumber(rateLimit) && isFiniteNumber(rateLimitRemaining)) {
-          setRateLimits({ rateLimit, rateLimitRemaining });
-        }
-
-        if (error) {
-          setError(error);
-          return;
-        }
-        if (!generatedResponse) {
-          setError(new Error("内容生成失败，请确认API KEY正确"));
-          return;
-        }
-
-        try {
-          await convertMermaidToExcalidraw({
-            canvasRef: someRandomDivRef,
-            data,
-            mermaidToExcalidrawLib,
-            setError,
-            mermaidDefinition: generatedResponse,
-          });
-          trackEvent("ai", "mermaid parse success", "ttd");
-        } catch (error: any) {
-          console.info(
-            `%cTTD mermaid render errror: ${error.message}`,
-            "color: red",
-          );
-          console.info(
-            `>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\nTTD mermaid definition render errror: ${error.message}`,
-            "color: yellow",
-          );
-          trackEvent("ai", "mermaid parse failed", "ttd");
-          setError(
-            new Error(
-              "生成的数据格式不正确！您可能需要更改提示词以生成正确的数据格式",
-            ),
-          );
-        }
-      } catch (error: any) {
-        let message: string | undefined = error.message;
-        if (!message || message === "Failed to fetch") {
-          message = "请求失败，请检查网络连接及服务";
-        }
-        setError(new Error(message));
-      } finally {
-        setOnTextSubmitInProgess(false);
-      }
-    };
-
-    const refOnGenerate = useRef(onGenerate);
-    refOnGenerate.current = onGenerate;
 
     const [mermaidToExcalidrawLib, setMermaidToExcalidrawLib] =
       useState<MermaidToExcalidrawLibProps>({
@@ -219,20 +81,13 @@ export const TTDDialogBase = withInternalFallback(
       fn();
     }, [mermaidToExcalidrawLib.api]);
 
-    const data = useRef<{
-      elements: readonly NonDeletedExcalidrawElement[];
-      files: BinaryFiles | null;
-    }>({ elements: [], files: null });
-
-    const [error, setError] = useState<Error | null>(null);
-
     return (
       <Dialog
         className="ttd-dialog"
         onCloseRequest={() => {
           app.setOpenDialog(null);
         }}
-        size={1200}
+        size={1520}
         title={false}
         {...rest}
         autofocus={false}
@@ -243,152 +98,36 @@ export const TTDDialogBase = withInternalFallback(
           ) : (
             <TTDDialogTabTriggers>
               <TTDDialogTabTrigger tab="text-to-diagram">
-                <div style={{ display: "flex", alignItems: "center" }}>
+                <div className="ttd-dialog-tab-trigger__content">
                   {t("labels.textToDiagram")}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "1px 6px",
-                      marginLeft: "10px",
-                      fontSize: 10,
-                      borderRadius: "12px",
-                      background: "var(--color-promo)",
-                      color: "var(--color-surface-lowest)",
-                    }}
-                  >
-                    AI Beta
+                  <div className="ttd-dialog-tab-trigger__badge">
+                    {t("chat.aiBeta")}
                   </div>
                 </div>
               </TTDDialogTabTrigger>
-              <TTDDialogTabTrigger tab="mermaid">Mermaid</TTDDialogTabTrigger>
+              <TTDDialogTabTrigger tab="mermaid">
+                {t("mermaid.label")}
+              </TTDDialogTabTrigger>
             </TTDDialogTabTriggers>
           )}
 
+          {!("__fallback" in rest) && (
+            <TTDDialogTab className="ttd-dialog-content" tab="text-to-diagram">
+              <TextToDiagram
+                mermaidToExcalidrawLib={mermaidToExcalidrawLib}
+                onTextSubmit={rest.onTextSubmit}
+                renderWelcomeScreen={rest.renderWelcomeScreen}
+                renderWarning={rest.renderWarning}
+                persistenceAdapter={rest.persistenceAdapter}
+              />
+            </TTDDialogTab>
+          )}
           <TTDDialogTab className="ttd-dialog-content" tab="mermaid">
             <MermaidToExcalidraw
               mermaidToExcalidrawLib={mermaidToExcalidrawLib}
+              isActive={tab === "mermaid"}
             />
           </TTDDialogTab>
-          {!("__fallback" in rest) && (
-            <TTDDialogTab className="ttd-dialog-content" tab="text-to-diagram">
-              <div className="ttd-dialog-desc">
-                {/* Currently we use Mermaid as a middle step, so you'll get best
-                results if you describe a diagram, workflow, flow chart, and
-                similar. */}
-                目前我们使用 Mermaid 作为中间步骤，因此如果您描述图表、工作流程、流程图等，您将获得最佳结果。
-              </div>
-              <TTDDialogPanels>
-                <TTDDialogPanel
-                  label={"提示词 （示例:你是一个 Mermaid 专家，生成一个简单的选择节点的Mermaid表达式，仅仅返回纯粹的表达式，不需要任何解释和多余的内容）"}
-                  panelAction={{
-                    action: onGenerate,
-                    label: "生成",
-                    icon: ArrowRightIcon,
-                  }}
-                  onTextSubmitInProgess={onTextSubmitInProgess}
-                  panelActionDisabled={
-                    prompt.length > MAX_PROMPT_LENGTH ||
-                    rateLimits?.rateLimitRemaining === 0
-                  }
-                  renderTopRight={() => {
-                    if (!rateLimits) {
-                      return null;
-                    }
-
-                    return (
-                      <div
-                        className="ttd-dialog-rate-limit"
-                        style={{
-                          fontSize: 12,
-                          marginLeft: "auto",
-                          color:
-                            rateLimits.rateLimitRemaining === 0
-                              ? "var(--color-danger)"
-                              : undefined,
-                        }}
-                      >
-                        {rateLimits.rateLimitRemaining} requests left today
-                      </div>
-                    );
-                  }}
-                  renderSubmitShortcut={() => <TTDDialogSubmitShortcut />}
-                  renderBottomRight={() => {
-                    if (typeof ttdGeneration?.generatedResponse === "string") {
-                      return (
-                        <div
-                          className="excalidraw-link"
-                          style={{ marginLeft: "auto", fontSize: 14 }}
-                          onClick={() => {
-                            if (
-                              typeof ttdGeneration?.generatedResponse ===
-                              "string"
-                            ) {
-                              saveMermaidDataToStorage(
-                                ttdGeneration.generatedResponse,
-                              );
-                              setAppState({
-                                openDialog: { name: "ttd", tab: "mermaid" },
-                              });
-                            }
-                          }}
-                        >
-                          {/* View as Mermaid */}
-                          查看 Mermaid
-                          <InlineIcon icon={ArrowRightIcon} />
-                        </div>
-                      );
-                    }
-                    const ratio = prompt.length / MAX_PROMPT_LENGTH;
-                    if (ratio > 0.8) {
-                      return (
-                        <div
-                          style={{
-                            marginLeft: "auto",
-                            fontSize: 12,
-                            fontFamily: "monospace",
-                            color:
-                              ratio > 1 ? "var(--color-danger)" : undefined,
-                          }}
-                        >
-                          Length: {prompt.length}/{MAX_PROMPT_LENGTH}
-                        </div>
-                      );
-                    }
-
-                    return null;
-                  }}
-                >
-                  <TTDDialogInput
-                    onChange={handleTextChange}
-                    input={text}
-                    placeholder={"输入您想生成的..."}
-                    onKeyboardSubmit={() => {
-                      refOnGenerate.current();
-                    }}
-                  />
-                </TTDDialogPanel>
-                <TTDDialogPanel
-                  label="预览"
-                  panelAction={{
-                    action: () => {
-                      console.info("Panel action clicked");
-                      insertToEditor({ app, data });
-                    },
-                    label: "插入",
-                    icon: ArrowRightIcon,
-                  }}
-                >
-                  <TTDDialogOutput
-                    canvasRef={someRandomDivRef}
-                    error={error}
-                    loaded={mermaidToExcalidrawLib.loaded}
-                  />
-                </TTDDialogPanel>
-              </TTDDialogPanels>
-            </TTDDialogTab>
-          )}
         </TTDDialogTabs>
       </Dialog>
     );

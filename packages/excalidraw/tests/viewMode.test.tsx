@@ -1,10 +1,28 @@
-import { render, GlobalTestState } from "./test-utils";
+import React from "react";
+import { vi } from "vitest";
+
+import { CURSOR_TYPE, KEYS } from "@excalidraw/common";
+
 import { Excalidraw } from "../index";
-import { KEYS } from "../keys";
+
+import { API } from "./helpers/api";
 import { Keyboard, Pointer, UI } from "./helpers/ui";
-import { CURSOR_TYPE } from "../constants";
+import { getTextEditor, updateTextEditor } from "./queries/dom";
+import {
+  act,
+  fireEvent,
+  render,
+  GlobalTestState,
+  mockBoundingClientRect,
+  restoreOriginalGetBoundingClientRect,
+  waitFor,
+} from "./test-utils";
 
 const { h } = window;
+
+const queryContainer = (selector: string) =>
+  GlobalTestState.renderResult.container.querySelector(selector);
+
 const mouse = new Pointer("mouse");
 const touch = new Pointer("touch");
 const pen = new Pointer("pen");
@@ -12,18 +30,24 @@ const pointerTypes = [mouse, touch, pen];
 
 describe("view mode", () => {
   beforeEach(async () => {
-    await render(<Excalidraw />);
+    mockBoundingClientRect();
+    await render(<Excalidraw handleKeyboardGlobally={true} />);
+    await waitFor(() => expect(h.state.width).toBe(200));
+  });
+
+  afterEach(() => {
+    restoreOriginalGetBoundingClientRect();
   });
 
   it("after switching to view mode – cursor type should be pointer", async () => {
-    h.setState({ viewModeEnabled: true });
+    API.setAppState({ viewModeEnabled: true });
     expect(GlobalTestState.interactiveCanvas.style.cursor).toBe(
       CURSOR_TYPE.GRAB,
     );
   });
 
   it("after switching to view mode, moving, clicking, and pressing space key – cursor type should be pointer", async () => {
-    h.setState({ viewModeEnabled: true });
+    API.setAppState({ viewModeEnabled: true });
 
     pointerTypes.forEach((pointerType) => {
       const pointer = pointerType;
@@ -35,6 +59,48 @@ describe("view mode", () => {
         CURSOR_TYPE.GRAB,
       );
     });
+  });
+
+  it("dispatches pointer events to custom tools in view mode", () => {
+    const onPointerDown = vi.fn();
+    const onPointerUp = vi.fn();
+
+    GlobalTestState.renderResult.rerender(
+      <Excalidraw
+        handleKeyboardGlobally={true}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+      />,
+    );
+
+    API.setAppState({ viewModeEnabled: true });
+    act(() => {
+      h.app.setActiveTool({
+        type: "custom",
+        customType: "comment",
+        locked: true,
+      });
+    });
+    expect(h.app.isInteractionEnabled()).toBe(true);
+
+    const { scrollX, scrollY } = h.state;
+
+    mouse.reset();
+    mouse.downAt(50, 50);
+    mouse.moveTo(100, 100);
+    mouse.upAt(100, 100);
+
+    expect(onPointerDown).toHaveBeenCalledTimes(1);
+    expect(onPointerDown.mock.calls[0][0]).toMatchObject({
+      type: "custom",
+      customType: "comment",
+    });
+    expect(onPointerUp).toHaveBeenCalledTimes(1);
+    expect(onPointerUp.mock.calls[0][0]).toMatchObject({
+      type: "custom",
+      customType: "comment",
+    });
+    expect([h.state.scrollX, h.state.scrollY]).toEqual([scrollX, scrollY]);
   });
 
   it("cursor should stay as grabbing type when hovering over canvas elements", async () => {
@@ -58,10 +124,67 @@ describe("view mode", () => {
         );
       }
 
-      h.setState({ viewModeEnabled: true });
+      API.setAppState({ viewModeEnabled: true });
       expect(GlobalTestState.interactiveCanvas.style.cursor).toBe(
         CURSOR_TYPE.GRAB,
       );
     });
+  });
+
+  it("submits active text editing when entering view mode", async () => {
+    const text = API.createElement({
+      type: "text",
+      text: "before",
+      x: 20,
+      y: 20,
+    });
+    API.setElements([text]);
+    API.setSelectedElements([text]);
+    Keyboard.keyPress(KEYS.ENTER);
+
+    const editor = await getTextEditor();
+    updateTextEditor(editor, "committed before view mode");
+
+    GlobalTestState.renderResult.rerender(
+      <Excalidraw viewModeEnabled={true} handleKeyboardGlobally={true} />,
+    );
+
+    await waitFor(() => {
+      expect(h.state.editingTextElement).toBe(null);
+      expect(queryContainer(".excalidraw-wysiwyg")).toBe(null);
+    });
+    expect(h.elements.find((element) => element.id === text.id)).toMatchObject({
+      originalText: "committed before view mode",
+    });
+  });
+
+  it("commits frame-name editing when entering view mode", async () => {
+    const frame = API.createElement({
+      type: "frame",
+      x: 20,
+      y: 30,
+      width: 80,
+      height: 50,
+    });
+    API.setElements([frame]);
+    API.updateElement(frame, { name: "before" });
+    API.setAppState({ editingFrame: frame.id });
+
+    const frameNameInput = await waitFor(() => {
+      const input = queryContainer(".frame-name input");
+      expect(input).not.toBe(null);
+      return input as HTMLInputElement;
+    });
+    fireEvent.change(frameNameInput, { target: { value: "  committed  " } });
+
+    API.setAppState({ viewModeEnabled: true });
+
+    await waitFor(() => {
+      expect(h.state.editingFrame).toBe(null);
+      expect(queryContainer(".frame-name input")).toBe(null);
+    });
+    expect(h.elements.find((element) => element.id === frame.id)).toMatchObject(
+      { name: "committed" },
+    );
   });
 });

@@ -1,8 +1,14 @@
 {
   "labels": {
+    "signUp": "",
+    "signIn": "",
     "paste": "পেস্ট করুন",
     "pasteAsPlaintext": "প্লেইনটেক্সট হিসাবে পেস্ট করুন",
     "pasteCharts": "চার্ট পেস্ট করুন",
+    "chartType_bar": "",
+    "chartType_line": "",
+    "chartType_radar": "",
+    "chartType_plaintext": "",
     "selectAll": "সবটা সিলেক্ট করুন",
     "multiSelect": "একাধিক সিলেক্ট করুন",
     "moveCanvas": "ক্যানভাস সরান",
@@ -11,8 +17,8 @@
     "copyAsPng": "পীএনজী ছবির মতন কপি করুন",
     "copyAsSvg": "এসভীজী ছবির মতন কপি করুন",
     "copyText": "লিখিত তথ্যের মতন কপি করুন",
-    "copySource": "",
-    "convertToCode": "",
+    "copySource": "পিএনজি ছবি ক্লিপবোর্ডে কপি করুন",
+    "convertToCode": "কোডে রূপান্তর করুন",
     "bringForward": "অধিকতর সামনে আনুন",
     "sendToBack": "অধিকতর পিছনে নিয়ে যান",
     "bringToFront": "সবার সামনে আনুন",
@@ -21,7 +27,9 @@
     "copyStyles": "ডিজাইন কপি করুন",
     "pasteStyles": "ডিজাইন পেস্ট করুন",
     "stroke": "রেখাংশ",
+    "changeStroke": "Hi",
     "background": "পটভূমি",
+    "changeBackground": "পটভূমির রঙ পরিবর্তন করুন",
     "fill": "রং",
     "strokeWidth": "রেখাংশের বেধ",
     "strokeStyle": "রেখাংশের ডিজাইন",
@@ -29,6 +37,9 @@
     "strokeStyle_dashed": "পাতলা",
     "strokeStyle_dotted": "বিন্দুবিন্দু",
     "sloppiness": "ভ্রান্তি",
+    "pressure": "",
+    "pressure_constant": "",
+    "pressure_variable": "",
     "opacity": "দৃশ্যমানতা",
     "textAlign": "লেখ অনুভূমি",
     "edges": "কোণ",
@@ -38,12 +49,27 @@
     "arrowhead_none": "কিছু না",
     "arrowhead_arrow": "তীর",
     "arrowhead_bar": "রেখাংশ",
-    "arrowhead_circle": "",
-    "arrowhead_circle_outline": "",
+    "arrowhead_circle": "বৃত্ত",
+    "arrowhead_circle_outline": "বৃত্তীয় (প্রান্তরেখা) প্রান্তরেখা",
     "arrowhead_triangle": "ত্রিভূজ",
-    "arrowhead_triangle_outline": "",
-    "arrowhead_diamond": "",
-    "arrowhead_diamond_outline": "",
+    "arrowhead_triangle_outline": "ত্রিভুজ (প্রান্তরেখা) প্রান্তরেখা",
+    "arrowhead_diamond": "হীরক",
+    "arrowhead_diamond_outline": "হীরক (প্রান্তরেখা)",
+    "arrowhead_crowfoot_many": "",
+    "arrowhead_crowfoot_one": "",
+    "arrowhead_crowfoot_one_or_many": "",
+    "arrowhead_cardinality_one": "",
+    "arrowhead_cardinality_many": "",
+    "arrowhead_cardinality_one_or_many": "",
+    "arrowhead_cardinality_exactly_one": "",
+    "arrowhead_cardinality_zero_or_one": "",
+    "arrowhead_cardinality_zero_or_many": "",
+    "more_options": "",
+    "cardinality": "",
+    "arrowtypes": "",
+    "arrowtype_sharp": "",
+    "arrowtype_round": "",
+    "arrowtype_elbowed": "",
     "fontSize": "লেখনীর মাত্রা",
     "fontFamily": "লেখনীর হরফ",
     "addWatermark": "এক্সক্যালিড্র দ্বারা প্রস্তুত",
@@ -72,6 +98,7 @@
     "canvasColors": "ক্যানভাসের রং",
     "canvasBackground": "ক্যানভাসের পটভূমি",
     "drawingCanvas": "ব্যবহৃত ক্যানভাস",
+    "clearCanvas": "পরিষ্কার ক্যানভাস",
     "layers": "মাত্রা",
     "actions": "ক্রিয়া",
     "language": "ভাষা",
@@ -84,12 +111,14 @@
     "group": "দল গঠন করুন",
     "ungroup": "দল বিভেদ করুন",
     "collaborators": "সহযোগী",
-    "showGrid": "গ্রিড দেখান",
+    "you": "",
+    "toggleGrid": "",
     "addToLibrary": "সংগ্রহে যোগ করুন",
     "removeFromLibrary": "সংগ্রহ থেকে বের করুন",
     "libraryLoadingMessage": "সংগ্রহ তৈরি হচ্ছে",
     "libraries": "সংগ্রহ দেখুন",
     "loadingScene": "দৃশ্য তৈরি হচ্ছে",
+    "loadScene": "",
     "align": "পংক্তিবিন্যাস",
     "alignTop": "উপর পংক্তি",
     "alignBottom": "নিম্ন পংক্তি",
@@ -104,27 +133,34 @@
     "viewMode": "দৃশ্য",
     "share": "ভাগ করুন",
     "showStroke": "",
-    "showBackground": "",
+    "showBackground": "পটভূমির রঙ নির্বাচনকারী অপশন দেখান",
+    "showFonts": "",
     "toggleTheme": "",
-    "personalLib": "",
-    "excalidrawLib": "",
+    "theme": "",
+    "personalLib": "ব্যক্তিগত লাইব্রেরি",
+    "excalidrawLib": "এক্সক্যালিড্র লাইব্রেরি",
     "decreaseFontSize": "লেখনীর মাত্রা কমান",
     "increaseFontSize": "লেখনীর মাত্রা বাড়ান",
-    "unbindText": "",
-    "bindText": "",
+    "unbindText": "লেখার জোড় খুলুন",
+    "bindText": "কন্টেইনারের সাথে লেখা জোড়া লাগান",
     "createContainerFromText": "",
     "link": {
       "edit": "লিঙ্ক সংশোধন",
       "editEmbed": "",
-      "create": "লিঙ্ক তৈরী",
-      "createEmbed": "",
+      "create": "",
       "label": "লিঙ্ক নামকরণ",
-      "labelEmbed": "",
-      "empty": ""
+      "labelEmbed": "লিংক ও এম্বেড",
+      "empty": "কোন লিংক সেট করা নেই",
+      "hint": "",
+      "goToElement": ""
     },
     "lineEditor": {
-      "edit": "",
-      "exit": ""
+      "edit": "লাইন সম্পাদনা করুন",
+      "editArrow": ""
+    },
+    "polygon": {
+      "breakPolygon": "",
+      "convertToPolygon": ""
     },
     "elementLock": {
       "lock": "আবদ্ধ করুন",
@@ -134,16 +170,57 @@
     },
     "statusPublished": "প্রকাশিত",
     "sidebarLock": "লক",
-    "selectAllElementsInFrame": "",
-    "removeAllElementsFromFrame": "",
-    "eyeDropper": "",
-    "textToDiagram": "",
-    "prompt": ""
+    "selectAllElementsInFrame": "ফ্রেমের ভিতরের সব উপকরণ বাছাই করুন",
+    "removeAllElementsFromFrame": "ফ্রেম থেকে সব উপকরণ মুছুন",
+    "eyeDropper": "ক্যানভাস থেকে রঙ বাছাই করুন",
+    "textToDiagram": "লেখা থেকে ডায়াগ্রাম",
+    "prompt": "",
+    "followUs": "",
+    "discordChat": "",
+    "zoomToFitViewport": "",
+    "zoomToFitSelection": "",
+    "zoomToFit": "",
+    "installPWA": "",
+    "autoResize": "",
+    "imageCropping": "",
+    "unCroppedDimension": "",
+    "copyElementLink": "",
+    "linkToElement": "",
+    "wrapSelectionInFrame": "",
+    "tab": "",
+    "shapeSwitch": "",
+    "preferences": "",
+    "preferences_toolLock": "",
+    "boxSelectionMode": "",
+    "boxSelectionContain": "",
+    "boxSelectionOverlap": "",
+    "arrowBinding": "",
+    "midpointSnapping": ""
+  },
+  "elementLink": {
+    "title": "",
+    "desc": "",
+    "notFound": ""
   },
   "library": {
     "noItems": "সংগ্রহে কিছু যোগ করা হয়নি",
     "hint_emptyLibrary": "এখানে যোগ করার জন্য ক্যানভাসে একটি বস্তু নির্বাচন করুন, অথবা নীচে, প্রকাশ্য সংগ্রহশালা থেকে একটি সংগ্রহ ইনস্টল করুন৷",
-    "hint_emptyPrivateLibrary": "এখানে যোগ করার জন্য ক্যানভাসে একটি বস্তু নির্বাচন করুন"
+    "hint_emptyPrivateLibrary": "এখানে যোগ করার জন্য ক্যানভাসে একটি বস্তু নির্বাচন করুন",
+    "search": {
+      "inputPlaceholder": "",
+      "heading": "",
+      "noResults": "",
+      "clearSearch": ""
+    }
+  },
+  "search": {
+    "title": "",
+    "noMatch": "",
+    "singleResult": "",
+    "multipleResults": "",
+    "placeholder": "",
+    "frames": "",
+    "texts": ""
   },
   "buttons": {
     "clearReset": "ক্যানভাস সাফ করুন",
@@ -151,6 +228,7 @@
     "exportImage": "",
     "export": "",
     "copyToClipboard": "ক্লিপবোর্ডে কপি করুন",
+    "copyLink": "",
     "save": "জমা করুন",
     "saveAs": "অন্যভাবে জমা করুন",
     "load": "",
@@ -171,14 +249,16 @@
     "fullScreen": "পূর্ণস্ক্রীন",
     "darkMode": "ডার্ক মোড",
     "lightMode": "লাইট মোড",
+    "systemMode": "",
     "zenMode": "জেন মোড",
     "objectsSnapMode": "",
     "exitZenMode": "জেন মোড বন্ধ করুন",
     "cancel": "বাতিল",
+    "saveLibNames": "",
     "clear": "সাফ",
     "remove": "বিয়োগ",
     "embed": "",
-    "publishLibrary": "সংগ্রহ প্রকাশ করুন",
+    "publishLibrary": "",
     "submit": "জমা করুন",
     "confirm": "নিশ্চিত করুন",
     "embeddableInteractionButton": ""
@@ -204,7 +284,8 @@
     "resetLibrary": "এটি আপনার সংগ্রহ পরিষ্কার করবে। আপনি কি নিশ্চিত?",
     "removeItemsFromsLibrary": "সংগ্রহ থেকে {{count}} বস্তু বিয়োগ করা হবে। আপনি কি নিশ্চিত?",
     "invalidEncryptionKey": "অবৈধ এনক্রীপশন কী।",
-    "collabOfflineWarning": ""
+    "collabOfflineWarning": "",
+    "localStorageQuotaExceeded": ""
   },
   "errors": {
     "unsupportedFileType": "অসমর্থিত ফাইল।",
@@ -212,9 +293,9 @@
     "fileTooBig": "ফাইলটি খুব বড়। সর্বাধিক অনুমোদিত আকার হল {{maxSize}}৷",
     "svgImageInsertError": "এসভীজী ছবি সন্নিবেশ করা যায়নি। এসভীজী মার্কআপটি অবৈধ মনে হচ্ছে৷",
     "failedToFetchImage": "",
-    "invalidSVGString": "এসভীজী মার্কআপটি অবৈধ মনে হচ্ছে৷",
     "cannotResolveCollabServer": "কোল্যাব সার্ভারের সাথে সংযোগ করা যায়নি। পৃষ্ঠাটি পুনরায় লোড করে আবার চেষ্টা করুন।",
     "importLibraryError": "সংগ্রহ লোড করা যায়নি",
+    "saveLibraryError": "",
     "collabSaveFailed": "",
     "collabSaveFailed_sizeExceeded": "",
     "imageToolNotSupported": "",
@@ -235,6 +316,7 @@
   },
   "toolBar": {
     "selection": "বাছাই",
+    "lasso": "",
     "image": "চিত্র সন্নিবেশ",
     "rectangle": "আয়তক্ষেত্র",
     "diamond": "রুহিতন",
@@ -246,16 +328,38 @@
     "library": "সংগ্রহ",
     "lock": "আঁকার পরে নির্বাচিত টুল সক্রিয় রাখুন",
     "penMode": "",
-    "link": "একটি নির্বাচিত আকৃতির জন্য লিঙ্ক যোগ বা আপডেট করুন",
+    "link": "",
     "eraser": "ঝাড়ন",
     "frame": "",
     "magicframe": "",
     "embeddable": "",
     "laser": "",
+    "autoshape": "",
+    "bucketfill": "",
     "hand": "",
     "extraTools": "",
     "mermaidToExcalidraw": "",
-    "magicSettings": ""
+    "convertElementType": ""
+  },
+  "bucketfill": {
+    "noRegion": "",
+    "tooComplex": ""
+  },
+  "element": {
+    "rectangle": "",
+    "diamond": "",
+    "ellipse": "",
+    "arrow": "",
+    "line": "",
+    "freedraw": "",
+    "text": "",
+    "image": "",
+    "group": "",
+    "frame": "",
+    "magicframe": "",
+    "embeddable": "",
+    "selection": "",
+    "iframe": ""
   },
   "headings": {
     "canvasActions": "ক্যানভাস কার্যকলাপ",
@@ -263,28 +367,36 @@
     "shapes": "আকার(গুলি)"
   },
   "hints": {
+    "dismissSearch": "",
     "canvasPanning": "",
     "linearElement": "একাধিক বিন্দু শুরু করতে ক্লিক করুন, একক লাইনের জন্য টেনে আনুন",
+    "arrowTool": "",
+    "arrowBindModifiers": "",
     "freeDraw": "ক্লিক করুন এবং টেনে আনুন, আপনার কাজ শেষ হলে ছেড়ে দিন",
     "text": "বিশেষ্য: আপনি নির্বাচন টুলের সাথে যে কোনো জায়গায় ডাবল-ক্লিক করে পাঠ্য যোগ করতে পারেন",
     "embeddable": "",
-    "text_selected": "লেখা সম্পাদনা করতে ডাবল-ক্লিক করুন বা এন্টার টিপুন",
-    "text_editing": "লেখা সম্পাদনা শেষ করতে এসকেপ বা কন্ট্রোল/কম্যান্ড যোগে এন্টার টিপুন",
-    "linearElementMulti": "শেষ বিন্দুতে ক্লিক করুন অথবা শেষ করতে এসকেপ বা এন্টার টিপুন",
-    "lockAngle": "ঘোরানোর সময় আপনি শিফ্ট ধরে রেখে কোণ সীমাবদ্ধ করতে পারেন",
-    "resize": "আপনি আকার পরিবর্তন করার সময় শিফ্ট ধরে রেখে অনুপাতকে সীমাবদ্ধ করতে পারেন,\nকেন্দ্র থেকে আকার পরিবর্তন করতে অল্ট ধরে রাখুন",
-    "resizeImage": "আপনি শিফ্ট ধরে রেখে অবাধে আকার পরিবর্তন করতে পারেন, কেন্দ্র থেকে আকার পরিবর্তন করতে অল্ট ধরুন",
-    "rotate": "আপনি ঘোরানোর সময় শিফ্ট ধরে রেখে কোণগুলিকে সীমাবদ্ধ করতে পারেন",
+    "autoshape": "",
+    "text_selected": "",
+    "text_editing": "",
+    "linearElementMulti": "",
+    "lockAngle": "",
+    "resize": "",
+    "resizeImage": "",
+    "rotate": "",
+    "toggleArrowhead": "",
     "lineEditor_info": "",
-    "lineEditor_pointSelected": "বিন্দু(গুলি) মুছতে ডিলিট টিপুন, কন্ট্রোল/কম্যান্ড যোগে ডি টিপুন নকল করতে অথবা সরানোর জন্য টানুন",
-    "lineEditor_nothingSelected": "সম্পাদনা করার জন্য একটি বিন্দু নির্বাচন করুন (একাধিক নির্বাচন করতে শিফ্ট ধরে রাখুন),\nঅথবা অল্ট ধরে রাখুন এবং নতুন বিন্দু যোগ করতে ক্লিক করুন",
-    "placeImage": "ছবিটি স্থাপন করতে ক্লিক করুন, অথবা নিজে আকার সেট করতে ক্লিক করুন এবং টেনে আনুন",
+    "lineEditor_line_info": "",
+    "lineEditor_pointSelected": "",
+    "lineEditor_nothingSelected": "",
     "publishLibrary": "আপনার নিজস্ব সংগ্রহ প্রকাশ করুন",
-    "bindTextToElement": "লেখা যোগ করতে এন্টার টিপুন",
+    "bindTextToElement": "",
+    "createFlowchart": "",
     "deepBoxSelect": "",
-    "eraserRevert": "মুছে ফেলার জন্য চিহ্নিত উপাদানগুলিকে ফিরিয়ে আনতে অল্ট ধরে রাখুন",
+    "eraserRevert": "",
     "firefox_clipboard_write": "",
-    "disableSnapping": ""
+    "disableSnapping": "",
+    "enterCropEditor": "",
+    "leaveCropEditor": ""
   },
   "canvasError": {
     "cannotShowPreview": "প্রিভিউ দেখাতে অপারগ",
@@ -299,9 +411,12 @@
     "openIssueMessage": "আমরা ত্রুটিতে আপনার দৃশ্যের তথ্য অন্তর্ভুক্ত না করার জন্য খুব সতর্ক ছিলাম। আপনার দৃশ্য ব্যক্তিগত না হলে, আমাদের অনুসরণ করার কথা বিবেচনা করুন <button>ত্রুটি ইতিবৃত্ত।</button> অনুগ্রহ করে GitHub ইস্যুতে অনুলিপি এবং পেস্ট করে নীচের তথ্য অন্তর্ভুক্ত করুন।",
     "sceneContent": "দৃশ্য বিষয়বস্তু:"
   },
+  "shareDialog": {
+    "or": ""
+  },
   "roomDialog": {
-    "desc_intro": "আপনি আপনার সাথে সহযোগিতা করার জন্য আপনার বর্তমান দৃশ্যে লোকেদের আমন্ত্রণ জানাতে পারেন৷",
-    "desc_privacy": "চিন্তা করবেন না, সেশনটি এন্ড-টু-এন্ড এনক্রিপশন ব্যবহার করে, তাই আপনি যা আঁকবেন তা গোপন থাকবে। এমনকি আমাদের সার্ভার আপনি যা নিয়ে এসেছেন তা দেখতে সক্ষম হবে না।",
+    "desc_intro": "",
+    "desc_privacy": "",
     "button_startSession": "সেশন শুরু করুন",
     "button_stopSession": "সেশন বন্ধ করুন",
     "desc_inProgressIntro": "লাইভ-সহযোগীতার সেশন এখন চলছে।",
@@ -311,6 +426,10 @@
   },
   "errorDialog": {
     "title": "ত্রুটি"
+  },
+  "progressDialog": {
+    "title": "",
+    "defaultMessage": ""
   },
   "exportDialog": {
     "disk_title": "",
@@ -328,6 +447,8 @@
     "click": "ক্লিক",
     "deepSelect": "",
     "deepBoxSelect": "",
+    "createFlowchart": "",
+    "navigateFlowchart": "",
     "curvedArrow": "",
     "curvedLine": "",
     "documentation": "",
@@ -350,7 +471,9 @@
     "zoomToSelection": "",
     "toggleElementLock": "",
     "movePageUpDown": "",
-    "movePageLeftRight": ""
+    "movePageLeftRight": "",
+    "cropStart": "",
+    "cropFinish": ""
   },
   "clearCanvasDialog": {
     "title": ""
@@ -421,13 +544,15 @@
   },
   "stats": {
     "angle": "কোণ",
-    "element": "",
-    "elements": "",
+    "shapes": "",
     "height": "",
     "scene": "",
     "selected": "",
     "storage": "",
+    "fullTitle": "",
     "title": "",
+    "generalStats": "",
+    "elementProperties": "",
     "total": "",
     "version": "",
     "versionCopy": "",
@@ -439,13 +564,15 @@
     "copyStyles": "",
     "copyToClipboard": "ক্লিপবোর্ডে কপি করা হয়েছে।",
     "copyToClipboardAsPng": "",
+    "copyToClipboardAsSvg": "",
     "fileSaved": "",
     "fileSavedToFilename": "",
     "canvas": "",
     "selection": "বাছাই",
     "pasteAsSingleElement": "",
     "unableToEmbed": "",
-    "unrecognizedLinkFormat": ""
+    "unrecognizedLinkFormat": "",
+    "elementLinkCopied": ""
   },
   "colors": {
     "transparent": "",
@@ -467,6 +594,8 @@
   "welcomeScreen": {
     "app": {
       "center_heading": "",
+      "center_heading_line2": "",
+      "center_heading_line3": "",
       "center_heading_plus": "",
       "menuHint": ""
     },
@@ -478,11 +607,16 @@
     }
   },
   "colorPicker": {
+    "color": "",
     "mostUsedCustomColors": "",
     "colors": "",
     "shades": "",
     "hexCode": "",
-    "noShades": ""
+    "noShades": "",
+    "invalidColor": "",
+    "invalidHexLength": "",
+    "topPicksTip": "",
+    "resetTopPicks": ""
   },
   "overwriteConfirm": {
     "action": {
@@ -520,6 +654,103 @@
     "button": "",
     "description": "",
     "syntax": "",
-    "preview": ""
+    "preview": "",
+    "label": "",
+    "inputPlaceholder": "",
+    "autoFixAvailable": ""
+  },
+  "ttd": {
+    "error": ""
+  },
+  "chat": {
+    "inputPlaceholder": "",
+    "inputPlaceholderWithMessages": "",
+    "generating": "",
+    "rateLimitRemaining": "",
+    "role": {
+      "user": "",
+      "assistant": "",
+      "system": ""
+    },
+    "aiBeta": "",
+    "label": "",
+    "menu": "",
+    "newChat": "",
+    "deleteChat": "",
+    "deleteMessage": "",
+    "viewAsMermaid": "",
+    "placeholder": {
+      "title": "",
+      "description": "",
+      "hint": ""
+    },
+    "preview": "",
+    "insert": "",
+    "retry": "",
+    "errors": {
+      "promptTooShort": "",
+      "promptTooLong": "",
+      "generationFailed": "",
+      "invalidDiagram": "",
+      "fixInMermaid": "",
+      "aiRepair": "",
+      "requestAborted": "",
+      "requestFailed": "",
+      "mermaidParseError": ""
+    },
+    "rateLimit": {
+      "messageLimit": "",
+      "generalRateLimit": "",
+      "messageLimitInputPlaceholder": ""
+    },
+    "upsellBtnLabel": ""
+  },
+  "quickSearch": {
+    "placeholder": ""
+  },
+  "fontList": {
+    "badge": {
+      "old": ""
+    },
+    "sceneFonts": "",
+    "availableFonts": "",
+    "empty": ""
+  },
+  "userList": {
+    "empty": "",
+    "hint": {
+      "text": "",
+      "followStatus": "",
+      "inCall": "",
+      "micMuted": "",
+      "isSpeaking": ""
+    }
+  },
+  "commandPalette": {
+    "title": "",
+    "shortcuts": {
+      "select": "",
+      "confirm": "",
+      "close": ""
+    },
+    "recents": "",
+    "search": {
+      "placeholder": "",
+      "noMatch": ""
+    },
+    "itemNotAvailable": "",
+    "shortcutHint": ""
+  },
+  "keys": {
+    "ctrl": "",
+    "option": "",
+    "cmd": "",
+    "alt": "",
+    "escape": "",
+    "enter": "",
+    "shift": "",
+    "spacebar": "",
+    "delete": "",
+    "mmb": ""
   }
 }

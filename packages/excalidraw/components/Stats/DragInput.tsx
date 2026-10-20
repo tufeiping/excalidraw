@@ -1,23 +1,33 @@
-import { useEffect, useRef, useState } from "react";
-import { EVENT } from "../../constants";
-import { KEYS } from "../../keys";
-import type { ElementsMap, ExcalidrawElement } from "../../element/types";
-import { deepCopyElement } from "../../element/newElement";
 import clsx from "clsx";
-import { useApp } from "../App";
+import { useEffect, useRef, useState } from "react";
+
+import { EVENT, KEYS, cloneJSON } from "@excalidraw/common";
+
+import { deepCopyElement } from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type {
+  ElementsMap,
+  ExcalidrawElement,
+  NonDeletedExcalidrawElement,
+} from "@excalidraw/element/types";
+
+import type { Scene } from "@excalidraw/element";
+
+import { useApp, useExcalidrawSetAppState } from "../App";
 import { InlineIcon } from "../InlineIcon";
-import type { StatsInputProperty } from "./utils";
+
 import { SMALLEST_DELTA } from "./utils";
-import { StoreAction } from "../../store";
-import type Scene from "../../scene/Scene";
 
 import "./DragInput.scss";
+
+import type { StatsInputProperty } from "./utils";
 import type { AppState } from "../../types";
-import { cloneJSON } from "../../utils";
 
 export type DragInputCallbackType<
   P extends StatsInputProperty,
-  E = ExcalidrawElement,
+  E = NonDeletedExcalidrawElement,
 > = (props: {
   accumulatedChange: number;
   instantChange: number;
@@ -25,9 +35,19 @@ export type DragInputCallbackType<
   originalElementsMap: ElementsMap;
   shouldKeepAspectRatio: boolean;
   shouldChangeByStepSize: boolean;
+  scene: Scene;
   nextValue?: number;
   property: P;
-  scene: Scene;
+  originalAppState: AppState;
+  setInputValue: (value: number) => void;
+  app: ReturnType<typeof useApp>;
+  setAppState: ReturnType<typeof useExcalidrawSetAppState>;
+}) => void;
+
+export type DragFinishedCallbackType<E = ExcalidrawElement> = (props: {
+  app: ReturnType<typeof useApp>;
+  setAppState: ReturnType<typeof useExcalidrawSetAppState>;
+  originalElements: readonly E[] | null;
   originalAppState: AppState;
 }) => void;
 
@@ -45,6 +65,9 @@ interface StatsDragInputProps<
   property: T;
   scene: Scene;
   appState: AppState;
+  /** how many px you need to drag to get 1 unit change */
+  sensitivity?: number;
+  dragFinishedCallback?: DragFinishedCallbackType;
 }
 
 const StatsDragInput = <
@@ -61,8 +84,13 @@ const StatsDragInput = <
   property,
   scene,
   appState,
+  sensitivity = 1,
+  dragFinishedCallback,
 }: StatsDragInputProps<T, E>) => {
   const app = useApp();
+  const ownerDocument = app.ownerDocument;
+  const ownerWindow = app.ownerWindow;
+  const setAppState = useExcalidrawSetAppState();
   const inputRef = useRef<HTMLInputElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
 
@@ -100,7 +128,10 @@ const StatsDragInput = <
     stateRef.current.updatePending = false;
 
     const parsed = Number(updatedValue);
-    if (isNaN(parsed)) {
+    // Number.isFinite also rejects "Infinity"/"1e999", which `isNaN` lets
+    // through — non-finite values corrupt element geometry (NaN/Infinity
+    // don't survive the JSON round-trip on save)
+    if (!Number.isFinite(parsed)) {
       setInputValue(value.toString());
       return;
     }
@@ -115,38 +146,73 @@ const StatsDragInput = <
     // reason: idempotent to avoid unnecessary
     if (isNaN(original) || Math.abs(rounded - original) >= SMALLEST_DELTA) {
       stateRef.current.lastUpdatedValue = updatedValue;
+      // a real snapshot (copies), like the pointer-drag path builds: the
+      // callbacks derive gesture-start values from it — e.g. a sticky note's
+      // width and its label's font ceiling — and the live map would already
+      // carry the change they apply. A typed value is applied once, so the
+      // scene at this point still is the original.
+      const originalElementsMap: ElementsMap = new Map();
+      for (const element of app.scene.getNonDeletedElements()) {
+        originalElementsMap.set(element.id, deepCopyElement(element));
+      }
       dragInputCallback({
         accumulatedChange: 0,
         instantChange: 0,
         originalElements: elements,
-        originalElementsMap: app.scene.getNonDeletedElementsMap(),
+        originalElementsMap,
         shouldKeepAspectRatio: shouldKeepAspectRatio!!,
         shouldChangeByStepSize: false,
+        scene,
         nextValue: rounded,
         property,
-        scene,
         originalAppState: appState,
+        setInputValue: (value) => setInputValue(String(value)),
+        app,
+        setAppState,
       });
-      app.syncActionResult({ storeAction: StoreAction.CAPTURE });
+      app.syncActionResult({
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
     }
   };
 
-  const handleInputValueRef = useRef(handleInputValue);
-  handleInputValueRef.current = handleInputValue;
+  const callbacksRef = useRef<
+    Partial<{
+      handleInputValue: typeof handleInputValue;
+      onPointerUp: (event: PointerEvent) => void;
+      onPointerMove: (event: PointerEvent) => void;
+    }>
+  >({});
+  callbacksRef.current.handleInputValue = handleInputValue;
 
   // make sure that clicking on canvas (which umounts the component)
   // updates current input value (blur isn't triggered)
   useEffect(() => {
     const input = inputRef.current;
+    const callbacks = callbacksRef.current;
     return () => {
       const nextValue = input?.value;
       if (nextValue) {
-        handleInputValueRef.current(
+        callbacks.handleInputValue?.(
           nextValue,
           stateRef.current.originalElements,
           stateRef.current.originalAppState,
         );
       }
+
+      // generally not needed, but in case `pointerup` doesn't fire and
+      // we don't remove the listeners that way, we should at least remove
+      // on unmount
+      ownerWindow.removeEventListener(
+        EVENT.POINTER_MOVE,
+        callbacks.onPointerMove!,
+        false,
+      );
+      ownerWindow.removeEventListener(
+        EVENT.POINTER_UP,
+        callbacks.onPointerUp!,
+        false,
+      );
     };
   }, [
     // we need to track change of `editable` state as mount/unmount
@@ -156,6 +222,7 @@ const StatsDragInput = <
     // to an element that has a given property as non-editable would not trigger
     // blur/unmount and wouldn't update the value.
     editable,
+    ownerWindow,
   ]);
 
   if (!editable) {
@@ -172,6 +239,8 @@ const StatsDragInput = <
         ref={labelRef}
         onPointerDown={(event) => {
           if (inputRef.current && editable) {
+            ownerDocument.body.classList.add("excalidraw-cursor-resize");
+
             let startValue = Number(inputRef.current.value);
             if (isNaN(startValue)) {
               startValue = 0;
@@ -182,13 +251,12 @@ const StatsDragInput = <
               y: number;
             } | null = null;
 
-            let originalElementsMap: Map<string, ExcalidrawElement> | null =
-              app.scene
-                .getNonDeletedElements()
-                .reduce((acc: ElementsMap, element) => {
-                  acc.set(element.id, deepCopyElement(element));
-                  return acc;
-                }, new Map());
+            let originalElementsMap: ElementsMap | null = app.scene
+              .getNonDeletedElements()
+              .reduce((acc: ElementsMap, element) => {
+                acc.set(element.id, deepCopyElement(element));
+                return acc;
+              }, new Map());
 
             let originalElements: readonly E[] | null = elements.map(
               (element) => originalElementsMap!.get(element.id) as E,
@@ -196,35 +264,45 @@ const StatsDragInput = <
 
             const originalAppState: AppState = cloneJSON(appState);
 
-            let accumulatedChange: number | null = null;
-
-            document.body.classList.add("excalidraw-cursor-resize");
+            let accumulatedChange = 0;
+            let stepChange = 0;
 
             const onPointerMove = (event: PointerEvent) => {
-              if (!accumulatedChange) {
-                accumulatedChange = 0;
-              }
-
               if (
                 lastPointer &&
                 originalElementsMap !== null &&
-                originalElements !== null &&
-                accumulatedChange !== null
+                originalElements !== null
               ) {
                 const instantChange = event.clientX - lastPointer.x;
-                accumulatedChange += instantChange;
 
-                dragInputCallback({
-                  accumulatedChange,
-                  instantChange,
-                  originalElements,
-                  originalElementsMap,
-                  shouldKeepAspectRatio: shouldKeepAspectRatio!!,
-                  shouldChangeByStepSize: event.shiftKey,
-                  property,
-                  scene,
-                  originalAppState,
-                });
+                if (instantChange !== 0) {
+                  stepChange += instantChange;
+
+                  if (Math.abs(stepChange) >= sensitivity) {
+                    stepChange =
+                      Math.sign(stepChange) *
+                      Math.floor(Math.abs(stepChange) / sensitivity);
+
+                    accumulatedChange += stepChange;
+
+                    dragInputCallback({
+                      accumulatedChange,
+                      instantChange: stepChange,
+                      originalElements,
+                      originalElementsMap,
+                      shouldKeepAspectRatio: shouldKeepAspectRatio!!,
+                      shouldChangeByStepSize: event.shiftKey,
+                      property,
+                      scene,
+                      originalAppState,
+                      setInputValue: (value) => setInputValue(String(value)),
+                      app,
+                      setAppState,
+                    });
+
+                    stepChange = 0;
+                  }
+                }
               }
 
               lastPointer = {
@@ -233,27 +311,49 @@ const StatsDragInput = <
               };
             };
 
-            window.addEventListener(EVENT.POINTER_MOVE, onPointerMove, false);
-            window.addEventListener(
-              EVENT.POINTER_UP,
-              () => {
-                window.removeEventListener(
-                  EVENT.POINTER_MOVE,
-                  onPointerMove,
-                  false,
-                );
+            const onPointerUp = () => {
+              ownerWindow.removeEventListener(
+                EVENT.POINTER_MOVE,
+                onPointerMove,
+                false,
+              );
 
-                app.syncActionResult({ storeAction: StoreAction.CAPTURE });
+              app.syncActionResult({
+                captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+              });
 
-                lastPointer = null;
-                accumulatedChange = null;
-                originalElements = null;
-                originalElementsMap = null;
+              // Notify implementors
+              dragFinishedCallback?.({
+                app,
+                setAppState,
+                originalElements,
+                originalAppState,
+              });
 
-                document.body.classList.remove("excalidraw-cursor-resize");
-              },
+              lastPointer = null;
+              accumulatedChange = 0;
+              stepChange = 0;
+              originalElements = null;
+              originalElementsMap = null;
+
+              ownerDocument.body.classList.remove("excalidraw-cursor-resize");
+
+              ownerWindow.removeEventListener(
+                EVENT.POINTER_UP,
+                onPointerUp,
+                false,
+              );
+            };
+
+            callbacksRef.current.onPointerMove = onPointerMove;
+            callbacksRef.current.onPointerUp = onPointerUp;
+
+            ownerWindow.addEventListener(
+              EVENT.POINTER_MOVE,
+              onPointerMove,
               false,
             );
+            ownerWindow.addEventListener(EVENT.POINTER_UP, onPointerUp, false);
           }
         }}
         onPointerEnter={() => {
@@ -270,9 +370,9 @@ const StatsDragInput = <
         spellCheck="false"
         onKeyDown={(event) => {
           if (editable) {
-            const eventTarget = event.target;
+            const eventTarget = event.currentTarget;
             if (
-              eventTarget instanceof HTMLInputElement &&
+              eventTarget instanceof ownerWindow.HTMLInputElement &&
               event.key === KEYS.ENTER
             ) {
               handleInputValue(eventTarget.value, elements, appState);

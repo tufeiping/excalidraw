@@ -1,23 +1,46 @@
-import { getSelectedElements, isSomeElementSelected } from "../scene";
-import { KEYS } from "../keys";
-import { ToolButton } from "../components/ToolButton";
+import {
+  KEYS,
+  MOBILE_ACTION_BUTTON_BG,
+  updateActiveTool,
+} from "@excalidraw/common";
+
+import { getNonDeletedElements } from "@excalidraw/element";
+import { fixBindingsAfterDeletion } from "@excalidraw/element";
+import { LinearElementEditor } from "@excalidraw/element";
+import { newElementWith } from "@excalidraw/element";
+import { getContainerElement } from "@excalidraw/element";
+import {
+  isBoundToContainer,
+  isElbowArrow,
+  isFrameLikeElement,
+} from "@excalidraw/element";
+import { getFrameChildren } from "@excalidraw/element";
+
+import { getElementsInGroup } from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
 import { t } from "../i18n";
-import { register } from "./register";
-import { getNonDeletedElements } from "../element";
-import type { ExcalidrawElement } from "../element/types";
-import type { AppState } from "../types";
-import { newElementWith } from "../element/mutateElement";
-import { getElementsInGroup } from "../groups";
-import { LinearElementEditor } from "../element/linearElementEditor";
-import { fixBindingsAfterDeletion } from "../element/binding";
-import { isBoundToContainer, isFrameLikeElement } from "../element/typeChecks";
-import { updateActiveTool } from "../utils";
+import { getSelectedElements, isSomeElementSelected } from "../scene";
 import { TrashIcon } from "../components/icons";
-import { StoreAction } from "../store";
+import { IconButton } from "../components/IconButton";
+
+import { useStylesPanelMode } from "../components/App";
+
+import { selectGroupsForSelectedElements } from "../components/App.selection";
+
+import { register } from "./register";
+
+import type { AppClassProperties, AppState } from "../types";
 
 const deleteSelectedElements = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
+  app: AppClassProperties,
+  /** a deleted frame takes its children along, rather than leaving them */
+  withFrameChildren: boolean,
 ) => {
   const framesToBeDeleted = new Set(
     getSelectedElements(
@@ -25,29 +48,147 @@ const deleteSelectedElements = (
       appState,
     ).map((el) => el.id),
   );
+  const isChildOfDeletedFrame = (el: ExcalidrawElement) =>
+    !!el.frameId && framesToBeDeleted.has(el.frameId);
 
-  return {
-    elements: elements.map((el) => {
-      if (appState.selectedElementIds[el.id]) {
-        return newElementWith(el, { isDeleted: true });
+  const selectedElementIds: Record<ExcalidrawElement["id"], true> = {};
+
+  const elementsMap = app.scene.getNonDeletedElementsMap();
+
+  const processedElements = new Set<ExcalidrawElement["id"]>();
+
+  for (const frameId of withFrameChildren ? [] : framesToBeDeleted) {
+    const frameChildren = getFrameChildren(elements, frameId);
+    for (const el of frameChildren) {
+      if (processedElements.has(el.id)) {
+        continue;
       }
 
-      if (el.frameId && framesToBeDeleted.has(el.frameId)) {
-        return newElementWith(el, { isDeleted: true });
+      if (isBoundToContainer(el)) {
+        const containerElement = getContainerElement(el, elementsMap);
+        if (containerElement) {
+          selectedElementIds[containerElement.id] = true;
+        }
+      } else {
+        selectedElementIds[el.id] = true;
+      }
+      processedElements.add(el.id);
+    }
+  }
+
+  let shouldSelectEditingGroup = true;
+
+  const nextElements = elements.map((el) => {
+    if (
+      appState.selectedElementIds[el.id] ||
+      (withFrameChildren && isChildOfDeletedFrame(el))
+    ) {
+      const boundElement = isBoundToContainer(el)
+        ? getContainerElement(el, elementsMap)
+        : null;
+
+      if (!withFrameChildren && isChildOfDeletedFrame(el)) {
+        shouldSelectEditingGroup = false;
+        selectedElementIds[el.id] = true;
+        return el;
       }
 
       if (
-        isBoundToContainer(el) &&
-        appState.selectedElementIds[el.containerId]
+        !withFrameChildren &&
+        boundElement &&
+        isChildOfDeletedFrame(boundElement)
       ) {
-        return newElementWith(el, { isDeleted: true });
+        return el;
       }
-      return el;
-    }),
+
+      if (el.boundElements) {
+        el.boundElements.forEach((candidate) => {
+          const bound = app.scene.getNonDeletedElementsMap().get(candidate.id);
+          if (bound && isElbowArrow(bound)) {
+            app.scene.mutateElement(bound, {
+              startBinding:
+                el.id === bound.startBinding?.elementId
+                  ? null
+                  : bound.startBinding,
+              endBinding:
+                el.id === bound.endBinding?.elementId ? null : bound.endBinding,
+            });
+          }
+        });
+      }
+      return newElementWith(el, { isDeleted: true });
+    }
+
+    // if deleting a frame, remove the children from it and select them
+    if (isChildOfDeletedFrame(el)) {
+      shouldSelectEditingGroup = false;
+      if (!isBoundToContainer(el)) {
+        selectedElementIds[el.id] = true;
+      }
+      return newElementWith(el, { frameId: null });
+    }
+
+    if (isBoundToContainer(el) && appState.selectedElementIds[el.containerId]) {
+      return newElementWith(el, { isDeleted: true });
+    }
+    return el;
+  });
+
+  let nextEditingGroupId = appState.editingGroupId;
+
+  // select next eligible element in currently editing group or supergroup
+  if (shouldSelectEditingGroup && appState.editingGroupId) {
+    const elems = getElementsInGroup(
+      nextElements,
+      appState.editingGroupId,
+    ).filter((el) => !el.isDeleted);
+    if (elems.length > 1) {
+      if (elems[0]) {
+        selectedElementIds[elems[0].id] = true;
+      }
+    } else {
+      nextEditingGroupId = null;
+      if (elems[0]) {
+        selectedElementIds[elems[0].id] = true;
+      }
+
+      const lastElementInGroup = elems[0];
+      if (lastElementInGroup) {
+        const editingGroupIdx = lastElementInGroup.groupIds.findIndex(
+          (groupId) => {
+            return groupId === appState.editingGroupId;
+          },
+        );
+        const superGroupId = lastElementInGroup.groupIds[editingGroupIdx + 1];
+        if (superGroupId) {
+          const elems = getElementsInGroup(nextElements, superGroupId).filter(
+            (el) => !el.isDeleted,
+          );
+          if (elems.length > 1) {
+            nextEditingGroupId = superGroupId;
+
+            elems.forEach((el) => {
+              selectedElementIds[el.id] = true;
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    elements: nextElements,
     appState: {
       ...appState,
-      selectedElementIds: {},
-      selectedGroupIds: {},
+      ...selectGroupsForSelectedElements(
+        {
+          selectedElementIds,
+          editingGroupId: nextEditingGroupId,
+        },
+        getNonDeletedElements(nextElements),
+        appState,
+        null,
+      ),
     },
   };
 };
@@ -71,22 +212,23 @@ const handleGroupEditingState = (
   return appState;
 };
 
-export const actionDeleteSelected = register({
+export const actionDeleteSelected = register<{
+  withFrameChildren?: boolean;
+} | null>({
   name: "deleteSelectedElements",
   label: "labels.delete",
   icon: TrashIcon,
   trackEvent: { category: "element", action: "delete" },
   perform: (elements, appState, formData, app) => {
-    if (appState.editingLinearElement) {
-      const {
-        elementId,
-        selectedPointsIndices,
-        startBindingElement,
-        endBindingElement,
-      } = appState.editingLinearElement;
+    if (appState.selectedLinearElement?.isEditing) {
+      const { elementId, selectedPointsIndices } =
+        appState.selectedLinearElement;
       const elementsMap = app.scene.getNonDeletedElementsMap();
-      const element = LinearElementEditor.getElement(elementId, elementsMap);
-      if (!element) {
+      const linearElement = LinearElementEditor.getElement(
+        elementId,
+        elementsMap,
+      );
+      if (!linearElement) {
         return false;
       }
       // case: no point selected → do nothing, as deleting the whole element
@@ -97,10 +239,10 @@ export const actionDeleteSelected = register({
         return false;
       }
 
-      // case: deleting last remaining point
-      if (element.points.length < 2) {
+      // case: deleting all points
+      if (selectedPointsIndices.length >= linearElement.points.length) {
         const nextElements = elements.map((el) => {
-          if (el.id === element.id) {
+          if (el.id === linearElement.id) {
             return newElementWith(el, { isDeleted: true });
           }
           return el;
@@ -111,48 +253,45 @@ export const actionDeleteSelected = register({
           elements: nextElements,
           appState: {
             ...nextAppState,
-            editingLinearElement: null,
+            selectedLinearElement: null,
           },
-          storeAction: StoreAction.CAPTURE,
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         };
       }
 
-      // We cannot do this inside `movePoint` because it is also called
-      // when deleting the uncommitted point (which hasn't caused any binding)
-      const binding = {
-        startBindingElement: selectedPointsIndices?.includes(0)
-          ? null
-          : startBindingElement,
-        endBindingElement: selectedPointsIndices?.includes(
-          element.points.length - 1,
-        )
-          ? null
-          : endBindingElement,
-      };
-
-      LinearElementEditor.deletePoints(element, selectedPointsIndices);
+      LinearElementEditor.deletePoints(
+        linearElement,
+        app,
+        selectedPointsIndices,
+      );
 
       return {
         elements,
         appState: {
           ...appState,
-          editingLinearElement: {
-            ...appState.editingLinearElement,
-            ...binding,
+          selectedLinearElement: {
+            ...appState.selectedLinearElement,
             selectedPointsIndices:
               selectedPointsIndices?.[0] > 0
                 ? [selectedPointsIndices[0] - 1]
                 : [0],
           },
         },
-        storeAction: StoreAction.CAPTURE,
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
       };
     }
+
     let { elements: nextElements, appState: nextAppState } =
-      deleteSelectedElements(elements, appState);
+      deleteSelectedElements(
+        elements,
+        appState,
+        app,
+        !!formData?.withFrameChildren,
+      );
+
     fixBindingsAfterDeletion(
       nextElements,
-      elements.filter(({ id }) => appState.selectedElementIds[id]),
+      nextElements.filter((el) => el.isDeleted),
     );
 
     nextAppState = handleGroupEditingState(nextAppState, nextElements);
@@ -161,29 +300,44 @@ export const actionDeleteSelected = register({
       elements: nextElements,
       appState: {
         ...nextAppState,
-        activeTool: updateActiveTool(appState, { type: "selection" }),
+        activeTool: updateActiveTool(appState, {
+          type: app.state.preferredSelectionTool.type,
+        }),
         multiElement: null,
+        newElement: null,
         activeEmbeddable: null,
+        selectedLinearElement: null,
       },
-      storeAction: isSomeElementSelected(
+      captureUpdate: isSomeElementSelected(
         getNonDeletedElements(elements),
         appState,
       )
-        ? StoreAction.CAPTURE
-        : StoreAction.NONE,
+        ? CaptureUpdateAction.IMMEDIATELY
+        : CaptureUpdateAction.EVENTUALLY,
     };
   },
   keyTest: (event, appState, elements) =>
     (event.key === KEYS.BACKSPACE || event.key === KEYS.DELETE) &&
     !event[KEYS.CTRL_OR_CMD],
-  PanelComponent: ({ elements, appState, updateData }) => (
-    <ToolButton
-      type="button"
-      icon={TrashIcon}
-      title={t("labels.delete")}
-      aria-label={t("labels.delete")}
-      onClick={() => updateData(null)}
-      visible={isSomeElementSelected(getNonDeletedElements(elements), appState)}
-    />
-  ),
+  PanelComponent: ({ elements, appState, updateData, app }) => {
+    const isMobile = useStylesPanelMode() === "mobile";
+
+    return (
+      <IconButton
+        type="button"
+        icon={TrashIcon}
+        title={t("labels.delete")}
+        aria-label={t("labels.delete")}
+        onClick={() => updateData(null)}
+        disabled={
+          !isSomeElementSelected(getNonDeletedElements(elements), appState)
+        }
+        style={{
+          ...(isMobile && appState.openPopup !== "compactOtherProperties"
+            ? MOBILE_ACTION_BUTTON_BG
+            : {}),
+        }}
+      />
+    );
+  },
 });

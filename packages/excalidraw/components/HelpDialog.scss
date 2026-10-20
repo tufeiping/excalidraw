@@ -1,4 +1,4 @@
-@import "../css/variables.module.scss";
+@use "../css/variables.module" as *;
 
 .excalidraw {
   .HelpDialog {
@@ -8,7 +8,7 @@
 
     h3 {
       margin: 1.5rem 0;
-      font-weight: bold;
+      font-weight: 700;
       font-size: 1.125rem;
     }
 
@@ -60,11 +60,12 @@
 
     &__islands-container {
       display: grid;
+      grid-column-gap: 1.5rem;
+      grid-row-gap: 2rem;
+
       @media screen and (min-width: 1024px) {
         grid-template-columns: 1fr 1fr;
       }
-      grid-column-gap: 1.5rem;
-      grid-row-gap: 2rem;
     }
 
     @media screen and (min-width: 1024px) {
@@ -82,7 +83,7 @@
     &__island {
       h4 {
         font-size: 1rem;
-        font-weight: bold;
+        font-weight: 700;
         margin: 0;
         margin-bottom: 0.625rem;
       }

@@ -1,16 +1,19 @@
-import { KEYS } from "../../keys";
+import { COLORS_PER_ROW, COLOR_PALETTE, KEYS } from "@excalidraw/common";
+
 import type {
   ColorPickerColor,
   ColorPalette,
   ColorPaletteCustom,
-} from "../../colors";
-import { COLORS_PER_ROW, COLOR_PALETTE } from "../../colors";
-import type { ValueOf } from "../../utility-types";
-import type { ActiveColorPickerSectionAtomType } from "./colorPickerUtils";
+} from "@excalidraw/common";
+
+import type { ValueOf } from "@excalidraw/common/utility-types";
+
 import {
   colorPickerHotkeyBindings,
   getColorNameAndShadeFromColor,
 } from "./colorPickerUtils";
+
+import type { ActiveColorPickerSectionAtomType } from "./colorPickerUtils";
 
 const arrowHandler = (
   eventKey: string,
@@ -52,6 +55,7 @@ interface HotkeyHandlerProps {
     update: React.SetStateAction<ActiveColorPickerSectionAtomType>,
   ) => void;
   activeShade: number;
+  excludedColors?: readonly string[];
 }
 
 /**
@@ -65,6 +69,7 @@ const hotkeyHandler = ({
   customColors,
   setActiveColorPickerSection,
   activeShade,
+  excludedColors,
 }: HotkeyHandlerProps): boolean => {
   if (colorObj?.shade != null) {
     // shift + numpad is extremely messed up on windows apparently
@@ -95,6 +100,14 @@ const hotkeyHandler = ({
     const r = Array.isArray(paletteValue)
       ? paletteValue[activeShade]
       : paletteValue;
+    // hotkeys of excluded (hidden) or absent palette entries are dead, not
+    // remapped — this keeps every other color on its usual key. Still
+    // HANDLED: within the modal's keyboard scope the key is deliberately
+    // inert, and reporting it unhandled would let it escape to global
+    // shortcuts (`q` toggles the tool lock)
+    if (r == null || excludedColors?.includes(r)) {
+      return true;
+    }
     onChange(r);
     setActiveColorPickerSection("baseColors");
     return true;
@@ -106,7 +119,7 @@ interface ColorPickerKeyNavHandlerProps {
   event: React.KeyboardEvent;
   activeColorPickerSection: ActiveColorPickerSectionAtomType;
   palette: ColorPaletteCustom;
-  color: string;
+  color: string | null;
   onChange: (color: string) => void;
   customColors: string[];
   setActiveColorPickerSection: (
@@ -116,6 +129,7 @@ interface ColorPickerKeyNavHandlerProps {
   activeShade: number;
   onEyeDropperToggle: (force?: boolean) => void;
   onEscape: (event: React.KeyboardEvent | KeyboardEvent) => void;
+  excludedColors?: readonly string[];
 }
 
 /**
@@ -133,6 +147,7 @@ export const colorPickerKeyNavHandler = ({
   activeShade,
   onEyeDropperToggle,
   onEscape,
+  excludedColors,
 }: ColorPickerKeyNavHandlerProps): boolean => {
   if (event[KEYS.CTRL_OR_CMD]) {
     return false;
@@ -223,6 +238,7 @@ export const colorPickerKeyNavHandler = ({
       customColors,
       setActiveColorPickerSection,
       activeShade,
+      excludedColors,
     })
   ) {
     return true;
@@ -246,11 +262,27 @@ export const colorPickerKeyNavHandler = ({
       const colorNames = Object.keys(palette) as (keyof ColorPalette)[];
       const indexOfColorName = colorNames.indexOf(colorName);
 
-      const newColorIndex = arrowHandler(
+      let newColorIndex = arrowHandler(
         event.key,
         indexOfColorName,
         colorNames.length,
       );
+
+      // step over excluded (hidden) palette entries, continuing in the
+      // arrow's direction
+      let guard = 0;
+      while (newColorIndex !== undefined && guard++ < colorNames.length) {
+        const value = palette[colorNames[newColorIndex]];
+        const resolved = Array.isArray(value) ? value[activeShade] : value;
+        if (!excludedColors?.includes(resolved)) {
+          break;
+        }
+        newColorIndex = arrowHandler(
+          event.key,
+          newColorIndex,
+          colorNames.length,
+        );
+      }
 
       if (newColorIndex !== undefined) {
         const newColorName = colorNames[newColorIndex];
@@ -267,7 +299,7 @@ export const colorPickerKeyNavHandler = ({
   }
 
   if (activeColorPickerSection === "custom") {
-    const indexOfColor = customColors.indexOf(color);
+    const indexOfColor = color != null ? customColors.indexOf(color) : 0;
 
     const newColorIndex = arrowHandler(
       event.key,

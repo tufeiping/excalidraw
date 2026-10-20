@@ -1,8 +1,10 @@
-import type React from "react";
 import type {
   ExcalidrawElement,
   OrderedExcalidrawElement,
-} from "../element/types";
+} from "@excalidraw/element/types";
+
+import type { CaptureUpdateActionType } from "@excalidraw/element";
+
 import type {
   AppClassProperties,
   AppState,
@@ -10,8 +12,7 @@ import type {
   BinaryFiles,
   UIAppState,
 } from "../types";
-import type { MarkOptional } from "../utility-types";
-import type { StoreActionType } from "../store";
+import type React from "react";
 
 export type ActionSource =
   | "ui"
@@ -24,20 +25,17 @@ export type ActionSource =
 export type ActionResult =
   | {
       elements?: readonly ExcalidrawElement[] | null;
-      appState?: MarkOptional<
-        AppState,
-        "offsetTop" | "offsetLeft" | "width" | "height"
-      > | null;
+      appState?: Partial<AppState> | null;
       files?: BinaryFiles | null;
-      storeAction: StoreActionType;
+      captureUpdate: CaptureUpdateActionType;
       replaceFiles?: boolean;
     }
   | false;
 
-type ActionFn = (
+type ActionFn<TData = any> = (
   elements: readonly OrderedExcalidrawElement[],
   appState: Readonly<AppState>,
-  formData: any,
+  formData: TData | undefined,
   app: AppClassProperties,
 ) => ActionResult | Promise<ActionResult>;
 
@@ -61,19 +59,23 @@ export type ActionName =
   | "gridMode"
   | "zenMode"
   | "objectsSnapMode"
+  | "arrowBinding"
+  | "midpointSnapping"
+  | "showHints"
   | "stats"
   | "changeStrokeColor"
   | "changeBackgroundColor"
+  | "changeBucketFillBackgroundColor"
   | "changeFillStyle"
   | "changeStrokeWidth"
-  | "changeStrokeShape"
   | "changeSloppiness"
+  | "changeFreedrawMode"
   | "changeStrokeStyle"
   | "changeArrowhead"
+  | "changeArrowType"
+  | "changeArrowProperties"
   | "changeOpacity"
   | "changeFontSize"
-  | "toggleCanvasMenu"
-  | "toggleEditMenu"
   | "undo"
   | "redo"
   | "finalize"
@@ -114,6 +116,7 @@ export type ActionName =
   | "distributeVertically"
   | "flipHorizontal"
   | "flipVertical"
+  | "deselect"
   | "viewMode"
   | "exportWithDarkMode"
   | "toggleTheme"
@@ -125,35 +128,46 @@ export type ActionName =
   | "unlockAllElements"
   | "toggleElementLock"
   | "toggleLinearEditor"
-  | "toggleEraserTool"
-  | "toggleHandTool"
   | "selectAllElementsInFrame"
   | "removeAllElementsFromFrame"
   | "updateFrameRendering"
-  | "setFrameAsActiveTool"
-  | "setEmbeddableAsActiveTool"
   | "createContainerFromText"
   | "wrapTextInContainer"
   | "commandPalette"
   | "autoResize"
-  | "elementStats";
+  | "elementStats"
+  | "searchMenu"
+  | "copyElementLink"
+  | "linkToElement"
+  | "cropEditor"
+  | "wrapSelectionInFrame"
+  | "toggleWrap"
+  | "toggleShapeSwitch"
+  | "togglePolygon";
 
 export type PanelComponentProps = {
   elements: readonly ExcalidrawElement[];
-  appState: AppState;
+  // UIAppState (not AppState) because PanelComponents only re-render when
+  // the UI does — reading UI-stripped props (zoom, scroll, …) would render
+  // stale values; subscribe via useAppStateValue for those instead
+  appState: UIAppState;
   updateData: <T = any>(formData?: T) => void;
   appProps: ExcalidrawProps;
   data?: Record<string, any>;
   app: AppClassProperties;
+  renderAction: (
+    name: ActionName,
+    data?: PanelComponentProps["data"],
+  ) => React.JSX.Element | null;
 };
 
-export interface Action {
+export interface Action<TData = any> {
   name: ActionName;
   label:
     | string
     | ((
         elements: readonly ExcalidrawElement[],
-        appState: Readonly<AppState>,
+        appState: Readonly<UIAppState>,
         app: AppClassProperties,
       ) => string);
   keywords?: string[];
@@ -164,7 +178,7 @@ export interface Action {
         elements: readonly ExcalidrawElement[],
       ) => React.ReactNode);
   PanelComponent?: React.FC<PanelComponentProps>;
-  perform: ActionFn;
+  perform: ActionFn<TData>;
   keyPriority?: number;
   keyTest?: (
     event: React.KeyboardEvent | KeyboardEvent,
@@ -178,7 +192,7 @@ export interface Action {
     appProps: ExcalidrawProps,
     app: AppClassProperties,
   ) => boolean;
-  checked?: (appState: Readonly<AppState>) => boolean;
+  checked?: (appState: Readonly<UIAppState>) => boolean;
   trackEvent:
     | false
     | {
@@ -190,7 +204,9 @@ export interface Action {
           | "history"
           | "menu"
           | "collab"
-          | "hyperlink";
+          | "hyperlink"
+          | "search_menu"
+          | "shape_switch";
         action?: string;
         predicate?: (
           appState: Readonly<AppState>,
@@ -201,4 +217,8 @@ export interface Action {
   /** if set to `true`, allow action to be performed in viewMode.
    *  Defaults to `false` */
   viewMode?: boolean;
+  /** if set to `true`, the action counts as canvas navigation and remains
+   *  available in the non-interactive editor when
+   *  `interaction: { enabled: { navigation: true } }`. Defaults to `false` */
+  navigation?: boolean;
 }

@@ -1,9 +1,10 @@
-import { CODES, KEYS } from "../keys";
-import { register } from "./register";
-import { GRID_SIZE } from "../constants";
-import type { AppState } from "../types";
+import { CODES, KEYS } from "@excalidraw/common";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
 import { gridIcon } from "../components/icons";
-import { StoreAction } from "../store";
+
+import { register } from "./register";
 
 export const actionToggleGridMode = register({
   name: "gridMode",
@@ -13,21 +14,21 @@ export const actionToggleGridMode = register({
   viewMode: true,
   trackEvent: {
     category: "canvas",
-    predicate: (appState) => !appState.gridSize,
+    predicate: (appState) => appState.gridModeEnabled,
   },
   perform(elements, appState) {
     return {
       appState: {
         ...appState,
-        gridSize: this.checked!(appState) ? null : GRID_SIZE,
+        gridModeEnabled: !this.checked!(appState),
         objectsSnapModeEnabled: false,
       },
-      storeAction: StoreAction.NONE,
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
-  checked: (appState: AppState) => appState.gridSize !== null,
+  checked: (appState) => appState.gridModeEnabled,
   predicate: (element, appState, props) => {
-    return typeof props.gridModeEnabled === "undefined";
+    return props.gridModeEnabled === undefined;
   },
   keyTest: (event) => event[KEYS.CTRL_OR_CMD] && event.code === CODES.QUOTE,
 });

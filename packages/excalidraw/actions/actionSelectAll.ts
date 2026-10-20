@@ -1,13 +1,22 @@
-import { KEYS } from "../keys";
-import { register } from "./register";
-import { selectGroupsForSelectedElements } from "../groups";
-import { getNonDeletedElements, isTextElement } from "../element";
-import type { ExcalidrawElement } from "../element/types";
-import { isLinearElement } from "../element/typeChecks";
-import { LinearElementEditor } from "../element/linearElementEditor";
-import { excludeElementsInFramesFromSelection } from "../scene/selection";
+import { getNonDeletedElements } from "@excalidraw/element";
+import { LinearElementEditor } from "@excalidraw/element";
+import { isLinearElement, isTextElement } from "@excalidraw/element";
+
+import { arrayToMap, KEYS } from "@excalidraw/common";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type {
+  ExcalidrawElement,
+  ExcalidrawLinearElement,
+  NonDeleted,
+} from "@excalidraw/element/types";
+
+import { selectGroupsForSelectedElements } from "../components/App.selection";
+
 import { selectAllIcon } from "../components/icons";
-import { StoreAction } from "../store";
+
+import { register } from "./register";
 
 export const actionSelectAll = register({
   name: "selectAll",
@@ -16,21 +25,21 @@ export const actionSelectAll = register({
   trackEvent: { category: "canvas" },
   viewMode: false,
   perform: (elements, appState, value, app) => {
-    if (appState.editingLinearElement) {
+    if (appState.selectedLinearElement?.isEditing) {
       return false;
     }
 
-    const selectedElementIds = excludeElementsInFramesFromSelection(
-      elements.filter(
+    const selectedElementIds = elements
+      .filter(
         (element) =>
           !element.isDeleted &&
           !(isTextElement(element) && element.containerId) &&
           !element.locked,
-      ),
-    ).reduce((map: Record<ExcalidrawElement["id"], true>, element) => {
-      map[element.id] = true;
-      return map;
-    }, {});
+      )
+      .reduce((map: Record<ExcalidrawElement["id"], true>, element) => {
+        map[element.id] = true;
+        return map;
+      }, {});
 
     return {
       appState: {
@@ -48,10 +57,13 @@ export const actionSelectAll = register({
           // single linear element selected
           Object.keys(selectedElementIds).length === 1 &&
           isLinearElement(elements[0])
-            ? new LinearElementEditor(elements[0])
+            ? new LinearElementEditor(
+                elements[0] as NonDeleted<ExcalidrawLinearElement>,
+                arrayToMap(elements),
+              )
             : null,
       },
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) => event[KEYS.CTRL_OR_CMD] && event.key === KEYS.A,

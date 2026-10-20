@@ -14,6 +14,9 @@ interface ImportMetaEnv {
   // set this only if using the collaboration workflow we use on excalidraw.com
   VITE_APP_PORTAL_URL: string;
   VITE_APP_AI_BACKEND: string;
+  // `excalidraw` (default) or `deepseek` (OpenAI-compatible, browser-side key)
+  VITE_APP_AI_PROVIDER: string;
+  VITE_APP_AI_MODEL: string;
 
   VITE_APP_FIREBASE_CONFIG: string;
 
@@ -28,6 +31,9 @@ interface ImportMetaEnv {
 
   // Enable eslint in dev server
   VITE_APP_ENABLE_ESLINT: string;
+
+  // Enable PWA in dev server
+  VITE_APP_ENABLE_PWA: string;
 
   VITE_APP_PLUS_LP: string;
 

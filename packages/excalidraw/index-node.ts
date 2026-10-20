@@ -1,5 +1,6 @@
-import { exportToCanvas } from "./scene/export";
-import { getDefaultAppState } from "./appState";
+import { exportScene } from "./scene/export";
+
+const fs = require("fs");
 
 const { registerFont, createCanvas } = require("canvas");
 
@@ -57,27 +58,24 @@ const elements = [
 registerFont("./public/Virgil.woff2", { family: "Virgil" });
 registerFont("./public/Cascadia.woff2", { family: "Cascadia" });
 
-const canvas = exportToCanvas(
-  elements as any,
-  {
-    ...getDefaultAppState(),
-    offsetTop: 0,
-    offsetLeft: 0,
-    width: 0,
-    height: 0,
-  },
-  {}, // files
-  {
-    exportBackground: true,
-    viewBackgroundColor: "#ffffff",
-  },
-  createCanvas,
-);
+(async () => {
+  const canvas = await exportScene({
+    type: "canvas",
+    data: {
+      elements: elements as any,
+      appState: {},
+      files: {},
+    },
+    config: {
+      canvasBackgroundColor: "#ffffff",
+      environment: { createCanvas },
+    },
+  });
 
-const fs = require("fs");
-const out = fs.createWriteStream("test.png");
-const stream = (canvas as any).createPNGStream();
-stream.pipe(out);
-out.on("finish", () => {
-  console.info("test.png was created.");
-});
+  const out = fs.createWriteStream("test.png");
+  const stream = (canvas as any).createPNGStream();
+  stream.pipe(out);
+  out.on("finish", () => {
+    console.info("test.png was created.");
+  });
+})();

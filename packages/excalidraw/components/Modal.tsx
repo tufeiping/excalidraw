@@ -1,11 +1,14 @@
+import clsx from "clsx";
+import { useMemo } from "react";
+import { createPortal } from "react-dom";
+
+import { KEYS } from "@excalidraw/common";
+
+import { useCreatePortalContainer } from "../hooks/useCreatePortalContainer";
+
 import "./Modal.scss";
 
-import { createPortal } from "react-dom";
-import clsx from "clsx";
-import { KEYS } from "../keys";
 import type { AppState } from "../types";
-import { useCreatePortalContainer } from "../hooks/useCreatePortalContainer";
-import { useRef } from "react";
 
 export const Modal: React.FC<{
   className?: string;
@@ -21,8 +24,12 @@ export const Modal: React.FC<{
     className: "excalidraw-modal-container",
   });
 
-  const animationsDisabledRef = useRef(
-    document.body.classList.contains("excalidraw-animations-disabled"),
+  const animationsDisabled = useMemo(
+    () =>
+      modalRoot?.ownerDocument.body.classList.contains(
+        "excalidraw-animations-disabled",
+      ) ?? false,
+    [modalRoot],
   );
 
   if (!modalRoot) {
@@ -31,6 +38,7 @@ export const Modal: React.FC<{
 
   const handleKeydown = (event: React.KeyboardEvent) => {
     if (event.key === KEYS.ESCAPE) {
+      event.preventDefault();
       event.nativeEvent.stopImmediatePropagation();
       event.stopPropagation();
       props.onCloseRequest();
@@ -40,13 +48,12 @@ export const Modal: React.FC<{
   return createPortal(
     <div
       className={clsx("Modal", props.className, {
-        "animations-disabled": animationsDisabledRef.current,
+        "animations-disabled": animationsDisabled,
       })}
       role="dialog"
       aria-modal="true"
       onKeyDown={handleKeydown}
       aria-labelledby={props.labelledBy}
-      data-prevent-outside-click
     >
       <div
         className="Modal__background"

@@ -1,6 +1,23 @@
-FROM nginx:1.24-alpine
+FROM --platform=${BUILDPLATFORM} node:24@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63 AS build
 
-COPY ./excalidraw-app/build /usr/share/nginx/html/whiteboard
+WORKDIR /opt/node_app
+
+COPY . .
+
+# do not ignore optional dependencies:
+# Error: Cannot find module @rollup/rollup-linux-x64-gnu
+RUN --mount=type=cache,target=/root/.cache/yarn \
+    npm_config_target_arch=${TARGETARCH} yarn --frozen-lockfile --network-timeout 600000
+
+ARG NODE_ENV=production
+
+RUN npm_config_target_arch=${TARGETARCH} yarn build:app:docker
+
+FROM nginx:stable-alpine-slim@sha256:2c605dbeab79a6b2b63340474fe58119d0ef95bdc4b1f41df0aa689659b3d13b
+
+# the fork serves the app under /whiteboard (see vite `base`) and injects
+# runtime configuration (collab/storage/AI endpoints) on container start
+COPY --from=build /opt/node_app/excalidraw-app/build /usr/share/nginx/html/whiteboard
 COPY ./docker/99-excalidraw-runtime-config.sh /docker-entrypoint.d/99-excalidraw-runtime-config.sh
 RUN chmod +x /docker-entrypoint.d/99-excalidraw-runtime-config.sh
 

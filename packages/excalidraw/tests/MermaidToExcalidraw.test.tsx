@@ -1,8 +1,17 @@
-import { act, render, waitFor } from "./test-utils";
+import { expect, vi } from "vitest";
+
 import { Excalidraw } from "../index";
-import { expect } from "vitest";
-import { getTextEditor, updateTextEditor } from "./queries/dom";
+
 import { mockMermaidToExcalidraw } from "./helpers/mocks";
+import { getTextEditor, updateTextEditor } from "./queries/dom";
+import { render, waitFor } from "./test-utils";
+
+// Mock CodeMirror deps so the dynamic import of CodeMirrorEditor fails,
+// causing TTDDialogInput to fall back to <textarea> in tests.
+vi.mock("@codemirror/view", () => ({}));
+vi.mock("@codemirror/state", () => ({}));
+vi.mock("@codemirror/language", () => ({}));
+vi.mock("@lezer/highlight", () => ({}));
 
 mockMermaidToExcalidraw({
   mockRef: true,
@@ -74,6 +83,26 @@ mockMermaidToExcalidraw({
   },
 });
 
+const normalizeDialogSnapshot = (dialog: Element) => {
+  const dialogClone = dialog.cloneNode(true) as HTMLElement;
+
+  dialogClone
+    .querySelectorAll<HTMLElement>(".ttd-dialog-content")
+    .forEach((element) => {
+      // Radix Tabs injects this during initial mount animation prevention.
+      // Its presence depends on render timing and is unrelated to this test.
+      if (element.style.animationDuration === "0s") {
+        element.style.removeProperty("animation-duration");
+      }
+
+      if (!element.getAttribute("style")) {
+        element.removeAttribute("style");
+      }
+    });
+
+  return dialogClone.outerHTML;
+};
+
 describe("Test <MermaidToExcalidraw/>", () => {
   beforeEach(async () => {
     await render(
@@ -89,8 +118,8 @@ describe("Test <MermaidToExcalidraw/>", () => {
 
   it("should open mermaid popup when active tool is mermaid", async () => {
     const dialog = document.querySelector(".ttd-dialog")!;
-    await waitFor(() => dialog.querySelector("canvas"));
-    expect(dialog.outerHTML).toMatchSnapshot();
+    await waitFor(() => expect(dialog.querySelector("canvas")).not.toBeNull());
+    expect(normalizeDialogSnapshot(dialog)).toMatchSnapshot();
   });
 
   it("should show error in preview when mermaid library throws error", async () => {
@@ -99,24 +128,14 @@ describe("Test <MermaidToExcalidraw/>", () => {
     expect(dialog).not.toBeNull();
 
     const selector = ".ttd-dialog-input";
-    let editor = await getTextEditor(selector, true);
+    let editor = await getTextEditor({ selector, waitForEditor: true });
 
     expect(dialog.querySelector('[data-testid="mermaid-error"]')).toBeNull();
 
-    expect(editor.textContent).toMatchInlineSnapshot(`
-      "flowchart TD
-       A[Christmas] -->|Get money| B(Go shopping)
-       B --> C{Let me think}
-       C -->|One| D[Laptop]
-       C -->|Two| E[iPhone]
-       C -->|Three| F[Car]"
-    `);
+    expect(editor.textContent).toMatchSnapshot();
 
-    await act(async () => {
-      updateTextEditor(editor, "flowchart TD1");
-      await new Promise((cb) => setTimeout(cb, 0));
-    });
-    editor = await getTextEditor(selector, false);
+    updateTextEditor(editor, "flowchart TD1");
+    editor = await getTextEditor({ selector, waitForEditor: false });
 
     expect(editor.textContent).toBe("flowchart TD1");
     expect(

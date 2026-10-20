@@ -1,9 +1,9 @@
+import { POINTER_EVENTS } from "@excalidraw/common";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
+import { WelcomeScreen } from "@excalidraw/excalidraw/index";
 import React from "react";
-// import { loginIcon } from "../../packages/excalidraw/components/icons";
-import { useI18n } from "../../packages/excalidraw/i18n";
-import { WelcomeScreen } from "../../packages/excalidraw/index";
+
 import { isExcalidrawPlusSignedUser } from "../app_constants";
-import { POINTER_EVENTS } from "../../packages/excalidraw/constants";
 
 export const AppWelcomeScreen: React.FC<{
   onCollabDialogOpen: () => any;
@@ -33,7 +33,15 @@ export const AppWelcomeScreen: React.FC<{
         return bit;
       });
   } else {
-    headingContent = t("welcomeScreen.app.center_heading");
+    headingContent = (
+      <>
+        {t("welcomeScreen.app.center_heading")}
+        <br />
+        {t("welcomeScreen.app.center_heading_line2")}
+        <br />
+        {t("welcomeScreen.app.center_heading_line3")}
+      </>
+    );
   }
 
   return (
@@ -56,6 +64,7 @@ export const AppWelcomeScreen: React.FC<{
               onSelect={() => props.onCollabDialogOpen()}
             />
           )}
+          {/* FlyLaTeX: self-hosted deployment, upstream Excalidraw+ sign-up removed */}
           {!isExcalidrawPlusSignedUser && (
             // <WelcomeScreen.Center.MenuItemLink
             //   href={`${
@@ -64,7 +73,7 @@ export const AppWelcomeScreen: React.FC<{
             //   shortcut={null}
             //   icon={loginIcon}
             // >
-            //   Sign up
+            //   {t("labels.signUp")}
             // </WelcomeScreen.Center.MenuItemLink>
             <></>
           )}

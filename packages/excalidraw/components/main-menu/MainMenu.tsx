@@ -1,16 +1,22 @@
 import React from "react";
-import { useDevice, useExcalidrawSetAppState } from "../App";
-import DropdownMenu from "../dropdownMenu/DropdownMenu";
 
-import * as DefaultItems from "./DefaultItems";
+import { composeEventHandlers } from "@excalidraw/common";
 
-import { UserList } from "../UserList";
-import { t } from "../../i18n";
-import { HamburgerMenuIcon } from "../icons";
-import { withInternalFallback } from "../hoc/withInternalFallback";
-import { composeEventHandlers } from "../../utils";
 import { useTunnels } from "../../context/tunnels";
 import { useUIAppState } from "../../context/ui-appState";
+import { t } from "../../i18n";
+import {
+  useAppProps,
+  useEditorInterface,
+  useExcalidrawSetAppState,
+} from "../App";
+import { UserList } from "../UserList";
+import DropdownMenu from "../dropdownMenu/DropdownMenu";
+import DropdownMenuSub from "../dropdownMenu/DropdownMenuSub";
+import { withInternalFallback } from "../hoc/withInternalFallback";
+import { HamburgerMenuIcon } from "../icons";
+
+import * as DefaultItems from "./DefaultItems";
 
 const MainMenu = Object.assign(
   withInternalFallback(
@@ -26,12 +32,10 @@ const MainMenu = Object.assign(
       onSelect?: (event: Event) => void;
     }) => {
       const { MainMenuTunnel } = useTunnels();
-      const device = useDevice();
+      const editorInterface = useEditorInterface();
       const appState = useUIAppState();
+      const appProps = useAppProps();
       const setAppState = useExcalidrawSetAppState();
-      const onClickOutside = device.editor.isMobile
-        ? undefined
-        : () => setAppState({ openMenu: null });
 
       return (
         <MainMenuTunnel.In>
@@ -40,6 +44,8 @@ const MainMenu = Object.assign(
               onToggle={() => {
                 setAppState({
                   openMenu: appState.openMenu === "canvas" ? null : "canvas",
+                  openPopup: null,
+                  openDialog: null,
                 });
               }}
               data-testid="main-menu-trigger"
@@ -48,22 +54,26 @@ const MainMenu = Object.assign(
               {HamburgerMenuIcon}
             </DropdownMenu.Trigger>
             <DropdownMenu.Content
-              onClickOutside={onClickOutside}
+              onClickOutside={() => setAppState({ openMenu: null })}
               onSelect={composeEventHandlers(onSelect, () => {
                 setAppState({ openMenu: null });
               })}
+              className="main-menu"
+              align="start"
             >
               {children}
-              {device.editor.isMobile && appState.collaborators.size > 0 && (
-                <fieldset className="UserList-Wrapper">
-                  <legend>{t("labels.collaborators")}</legend>
-                  <UserList
-                    mobile={true}
-                    collaborators={appState.collaborators}
-                    userToFollow={appState.userToFollow?.socketId || null}
-                  />
-                </fieldset>
-              )}
+              {editorInterface.formFactor === "phone" &&
+                appState.collaborators.size > 0 && (
+                  <fieldset className="UserList-Wrapper">
+                    <legend>{t("labels.collaborators")}</legend>
+                    <UserList
+                      mobile={true}
+                      collaborators={appState.collaborators}
+                      userToFollow={appProps.userToFollow?.socketId || null}
+                      currentUserControls={appProps.currentUserControls}
+                    />
+                  </fieldset>
+                )}
             </DropdownMenu.Content>
           </DropdownMenu>
         </MainMenuTunnel.In>
@@ -77,6 +87,7 @@ const MainMenu = Object.assign(
     ItemCustom: DropdownMenu.ItemCustom,
     Group: DropdownMenu.Group,
     Separator: DropdownMenu.Separator,
+    Sub: DropdownMenuSub,
     DefaultItems,
   },
 );

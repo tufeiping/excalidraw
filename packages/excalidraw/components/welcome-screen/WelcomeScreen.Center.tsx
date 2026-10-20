@@ -1,11 +1,14 @@
 import { actionLoadScene, actionShortcuts } from "../../actions";
 import { getShortcutFromShortcutName } from "../../actions/shortcuts";
-import { t, useI18n } from "../../i18n";
-import { useDevice, useExcalidrawActionManager } from "../App";
 import { useTunnels } from "../../context/tunnels";
-import { HelpIcon, LoadIcon, usersIcon } from "../icons";
 import { useUIAppState } from "../../context/ui-appState";
+import { t, useI18n } from "../../i18n";
+import { useEditorInterface, useExcalidrawActionManager } from "../App";
+// FlyLaTeX: custom branding, the upstream logo is not used
 // import { ExcalidrawLogo } from "../ExcalidrawLogo";
+import { HelpIcon, LoadIcon, usersIcon } from "../icons";
+
+import type { JSX } from "react";
 
 const WelcomeScreenMenuItemContent = ({
   icon,
@@ -16,12 +19,12 @@ const WelcomeScreenMenuItemContent = ({
   shortcut?: string | null;
   children: React.ReactNode;
 }) => {
-  const device = useDevice();
+  const editorInterface = useEditorInterface();
   return (
     <>
       <div className="welcome-screen-menu-item__icon">{icon}</div>
       <div className="welcome-screen-menu-item__text">{children}</div>
-      {shortcut && !device.editor.isMobile && (
+      {shortcut && editorInterface.formFactor !== "phone" && (
         <div className="welcome-screen-menu-item__shortcut">{shortcut}</div>
       )}
     </>
@@ -76,7 +79,7 @@ const WelcomeScreenMenuItemLink = ({
       className={`welcome-screen-menu-item ${className}`}
       href={href}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener"
     >
       <WelcomeScreenMenuItemContent icon={icon} shortcut={shortcut}>
         {children}
@@ -109,7 +112,7 @@ Center.displayName = "Center";
 
 const Logo = ({ children }: { children?: React.ReactNode }) => {
   return (
-    <div className="welcome-screen-center__logo virgil welcome-screen-decor">
+    <div className="welcome-screen-center__logo excalifont welcome-screen-decor">
       {/* {children || <ExcalidrawLogo withText />} */}
       FLYLATEX
     </div>
@@ -119,7 +122,7 @@ Logo.displayName = "Logo";
 
 const Heading = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="welcome-screen-center__heading welcome-screen-decor virgil">
+    <div className="welcome-screen-center__heading welcome-screen-decor excalifont">
       {children}
     </div>
   );

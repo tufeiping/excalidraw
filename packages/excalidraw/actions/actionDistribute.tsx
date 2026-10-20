@@ -1,26 +1,45 @@
+import { getNonDeletedElements } from "@excalidraw/element";
+
+import { isFrameLikeElement } from "@excalidraw/element";
+
+import { CODES, KEYS, arrayToMap } from "@excalidraw/common";
+
+import { updateFrameMembershipOfSelectedElements } from "@excalidraw/element";
+
+import { distributeElements } from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import { getSelectedElementsByGroup } from "@excalidraw/element";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
+import type { Distribution } from "@excalidraw/element";
+
+import { IconButton } from "../components/IconButton";
 import {
   DistributeHorizontallyIcon,
   DistributeVerticallyIcon,
 } from "../components/icons";
-import { ToolButton } from "../components/ToolButton";
-import type { Distribution } from "../distribute";
-import { distributeElements } from "../distribute";
-import { getNonDeletedElements } from "../element";
-import { isFrameLikeElement } from "../element/typeChecks";
-import type { ExcalidrawElement } from "../element/types";
-import { updateFrameMembershipOfSelectedElements } from "../frame";
+
 import { t } from "../i18n";
-import { CODES, KEYS } from "../keys";
+
 import { isSomeElementSelected } from "../scene";
-import { StoreAction } from "../store";
-import type { AppClassProperties, AppState } from "../types";
-import { arrayToMap, getShortcutKey } from "../utils";
+
+import { getShortcutKey } from "../shortcut";
+
 import { register } from "./register";
 
-const enableActionGroup = (appState: AppState, app: AppClassProperties) => {
+import type { AppClassProperties, AppState, UIAppState } from "../types";
+
+const enableActionGroup = (appState: UIAppState, app: AppClassProperties) => {
   const selectedElements = app.scene.getSelectedElements(appState);
   return (
-    selectedElements.length > 1 &&
+    getSelectedElementsByGroup(
+      selectedElements,
+      app.scene.getNonDeletedElementsMap(),
+      appState,
+    ).length > 2 &&
     // TODO enable distributing frames when implemented properly
     !selectedElements.some((el) => isFrameLikeElement(el))
   );
@@ -38,6 +57,8 @@ const distributeSelectedElements = (
     selectedElements,
     app.scene.getNonDeletedElementsMap(),
     distribution,
+    appState,
+    app.scene,
   );
 
   const updatedElementsMap = arrayToMap(updatedElements);
@@ -60,13 +81,13 @@ export const distributeHorizontally = register({
         space: "between",
         axis: "x",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.H,
   PanelComponent: ({ elements, appState, updateData, app }) => (
-    <ToolButton
+    <IconButton
       hidden={!enableActionGroup(appState, app)}
       type="button"
       icon={DistributeHorizontallyIcon}
@@ -91,13 +112,13 @@ export const distributeVertically = register({
         space: "between",
         axis: "y",
       }),
-      storeAction: StoreAction.CAPTURE,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.V,
   PanelComponent: ({ elements, appState, updateData, app }) => (
-    <ToolButton
+    <IconButton
       hidden={!enableActionGroup(appState, app)}
       type="button"
       icon={DistributeVerticallyIcon}

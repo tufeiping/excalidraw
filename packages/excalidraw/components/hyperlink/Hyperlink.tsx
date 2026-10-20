@@ -1,20 +1,5 @@
-import type { AppState, ExcalidrawProps, Point, UIAppState } from "../../types";
-import {
-  sceneCoordsToViewportCoords,
-  viewportCoordsToSceneCoords,
-  wrapEvent,
-} from "../../utils";
-import { getEmbedLink, embeddableURLValidator } from "../../element/embeddable";
-import { mutateElement } from "../../element/mutateElement";
-import type {
-  ElementsMap,
-  ExcalidrawEmbeddableElement,
-  NonDeletedExcalidrawElement,
-} from "../../element/types";
-
-import { ToolButton } from "../ToolButton";
-import { FreedrawIcon, TrashIcon } from "../icons";
-import { t } from "../../i18n";
+import { pointFrom, type GlobalPoint } from "@excalidraw/math";
+import clsx from "clsx";
 import {
   useCallback,
   useEffect,
@@ -22,28 +7,108 @@ import {
   useRef,
   useState,
 } from "react";
-import clsx from "clsx";
-import { KEYS } from "../../keys";
-import { EVENT, HYPERLINK_TOOLTIP_DELAY } from "../../constants";
-import { getElementAbsoluteCoords } from "../../element/bounds";
-import { getTooltipDiv, updateTooltipPosition } from "../../components/Tooltip";
-import { getSelectedElements } from "../../scene";
-import { hitElementBoundingBox } from "../../element/collision";
-import { isLocalLink, normalizeLink } from "../../data/url";
 
-import "./Hyperlink.scss";
+import {
+  EVENT,
+  HYPERLINK_TOOLTIP_DELAY,
+  KEYS,
+  getTargetWindow,
+} from "@excalidraw/common";
+
+import { getElementAbsoluteCoords } from "@excalidraw/element";
+
+import { hitElementBoundingBox } from "@excalidraw/element";
+
+import { isElementLink } from "@excalidraw/element";
+
+import { getEmbedLink, embeddableURLValidator } from "@excalidraw/element";
+
+import {
+  sceneCoordsToViewportCoords,
+  viewportCoordsToSceneCoords,
+  wrapEvent,
+  isLocalLink,
+  normalizeLink,
+} from "@excalidraw/common";
+
+import { isEmbeddableElement } from "@excalidraw/element";
+
+import type { Scene } from "@excalidraw/element";
+
+import type {
+  ElementsMap,
+  ExcalidrawEmbeddableElement,
+  NonDeletedExcalidrawElement,
+} from "@excalidraw/element/types";
+
 import { trackEvent } from "../../analytics";
-import { useAppProps, useExcalidrawAppState } from "../App";
-import { isEmbeddableElement } from "../../element/typeChecks";
+import {
+  TOOLTIP_VISIBLE_CLASS,
+  getTooltipDiv,
+  hideDocumentTooltip,
+  updateTooltipPosition,
+} from "../../components/Tooltip";
+
+import { t } from "../../i18n";
+
+import {
+  useApp,
+  useAppProps,
+  useEditorInterface,
+  useExcalidrawAppState,
+} from "../App";
+import { IconButton } from "../IconButton";
+import { FreedrawIcon, TrashIcon, elementLinkIcon } from "../icons";
+import { getSelectedElements } from "../../scene";
+
 import { getLinkHandleFromCoords } from "./helpers";
 
-const CONTAINER_WIDTH = 320;
+import "./Hyperlink.scss";
+
+import type { AppState, ExcalidrawProps, UIAppState } from "../../types";
+
+const POPUP_WIDTH = 380;
+const POPUP_HEIGHT = 42;
+const POPUP_PADDING = 5;
 const SPACE_BOTTOM = 85;
-const CONTAINER_PADDING = 5;
-const CONTAINER_HEIGHT = 42;
 const AUTO_HIDE_TIMEOUT = 500;
 
+export type HyperlinkTooltipOwner = Record<string, unknown>;
+
 let IS_HYPERLINK_TOOLTIP_VISIBLE = false;
+let HYPERLINK_TOOLTIP_OWNER: HyperlinkTooltipOwner | null = null;
+let HYPERLINK_TOOLTIP_OWNER_DOCUMENT: Document | null = null;
+let HYPERLINK_TOOLTIP_OWNER_WINDOW: Window | null = null;
+
+// When the owning window loses focus, the pointer leaves it, or it is
+// hidden (pagehide on close/navigation), no in-window event will ever
+// call hideHyperlinkToolip again, and a sibling window's hide call is a
+// no-op due to the ownership guard, so the owning window itself must
+// drop the tooltip in that case.
+const TOOLTIP_WINDOW_CLEANUPS = new WeakMap<Window, void>();
+
+const registerTooltipWindowCleanup = (ownerWindow: Window) => {
+  if (TOOLTIP_WINDOW_CLEANUPS.has(ownerWindow)) {
+    return;
+  }
+  const dropIfOwned = () => {
+    if (HYPERLINK_TOOLTIP_OWNER_WINDOW === ownerWindow) {
+      clearHyperlinkTooltip();
+    }
+  };
+  const onPointerOut = (event: MouseEvent) => {
+    // relatedTarget is null only when the pointer left the window
+    if (event.relatedTarget === null) {
+      dropIfOwned();
+    }
+  };
+  ownerWindow.addEventListener("blur", dropIfOwned);
+  ownerWindow.addEventListener("mouseout", onPointerOut);
+  // covers window close/navigation that skips blur, so the globals
+  // never retain the detached document/window
+  ownerWindow.addEventListener("pagehide", dropIfOwned);
+  TOOLTIP_WINDOW_CLEANUPS.set(ownerWindow, undefined);
+};
 
 const embeddableLinkCache = new Map<
   ExcalidrawEmbeddableElement["id"],
@@ -52,14 +117,14 @@ const embeddableLinkCache = new Map<
 
 export const Hyperlink = ({
   element,
-  elementsMap,
+  scene,
   setAppState,
   onLinkOpen,
   setToast,
   updateEmbedValidationStatus,
 }: {
   element: NonDeletedExcalidrawElement;
-  elementsMap: ElementsMap;
+  scene: Scene;
   setAppState: React.Component<any, AppState>["setState"];
   onLinkOpen: ExcalidrawProps["onLinkOpen"];
   setToast: (
@@ -70,8 +135,11 @@ export const Hyperlink = ({
     status: boolean,
   ) => void;
 }) => {
+  const elementsMap = scene.getNonDeletedElementsMap();
   const appState = useExcalidrawAppState();
+  const app = useApp();
   const appProps = useAppProps();
+  const editorInterface = useEditorInterface();
 
   const linkVal = element.link || "";
 
@@ -95,7 +163,7 @@ export const Hyperlink = ({
         setAppState({ activeEmbeddable: null });
       }
       if (!link) {
-        mutateElement(element, {
+        scene.mutateElement(element, {
           link: null,
         });
         updateEmbedValidationStatus(element, false);
@@ -107,7 +175,7 @@ export const Hyperlink = ({
           setToast({ message: t("toast.unableToEmbed"), closable: true });
         }
         element.link && embeddableLinkCache.set(element.id, element.link);
-        mutateElement(element, {
+        scene.mutateElement(element, {
           link,
         });
         updateEmbedValidationStatus(element, false);
@@ -125,7 +193,7 @@ export const Hyperlink = ({
           : 1;
         const hasLinkChanged =
           embeddableLinkCache.get(element.id) !== element.link;
-        mutateElement(element, {
+        scene.mutateElement(element, {
           ...(hasLinkChanged
             ? {
                 width:
@@ -150,10 +218,11 @@ export const Hyperlink = ({
         }
       }
     } else {
-      mutateElement(element, { link });
+      scene.mutateElement(element, { link });
     }
   }, [
     element,
+    scene,
     setToast,
     appProps.validateEmbeddable,
     appState.activeEmbeddable,
@@ -168,41 +237,59 @@ export const Hyperlink = ({
   }, [handleSubmit]);
 
   useEffect(() => {
+    if (
+      isEditing &&
+      inputRef?.current &&
+      !(editorInterface.formFactor === "phone" || editorInterface.isTouchScreen)
+    ) {
+      inputRef.current.select();
+    }
+  }, [isEditing, editorInterface.formFactor, editorInterface.isTouchScreen]);
+
+  useEffect(() => {
     let timeoutId: number | null = null;
+
+    // the editor may be rendered into another document, in which case pointer
+    // events never reach the module-realm window
+    const ownerWindow = app.ownerWindow;
+
     const handlePointerMove = (event: PointerEvent) => {
       if (isEditing) {
         return;
       }
       if (timeoutId) {
-        clearTimeout(timeoutId);
+        ownerWindow.clearTimeout(timeoutId);
       }
-      const shouldHide = shouldHideLinkPopup(element, elementsMap, appState, [
-        event.clientX,
-        event.clientY,
-      ]) as boolean;
+      const shouldHide = shouldHideLinkPopup(
+        element,
+        elementsMap,
+        appState,
+        pointFrom(event.clientX, event.clientY),
+      ) as boolean;
       if (shouldHide) {
-        timeoutId = window.setTimeout(() => {
+        timeoutId = ownerWindow.setTimeout(() => {
           setAppState({ showHyperlinkPopup: false });
         }, AUTO_HIDE_TIMEOUT);
       }
     };
-    window.addEventListener(EVENT.POINTER_MOVE, handlePointerMove, false);
+    ownerWindow.addEventListener(EVENT.POINTER_MOVE, handlePointerMove, false);
     return () => {
-      window.removeEventListener(EVENT.POINTER_MOVE, handlePointerMove, false);
+      ownerWindow.removeEventListener(
+        EVENT.POINTER_MOVE,
+        handlePointerMove,
+        false,
+      );
       if (timeoutId) {
-        clearTimeout(timeoutId);
+        ownerWindow.clearTimeout(timeoutId);
       }
     };
-  }, [appState, element, isEditing, setAppState, elementsMap]);
+  }, [app, appState, element, isEditing, setAppState, elementsMap]);
 
   const handleRemove = useCallback(() => {
     trackEvent("hyperlink", "delete");
-    mutateElement(element, { link: null });
-    if (isEditing) {
-      inputRef.current!.value = "";
-    }
+    scene.mutateElement(element, { link: null });
     setAppState({ showHyperlinkPopup: false });
-  }, [setAppState, element, isEditing]);
+  }, [setAppState, element, scene]);
 
   const onEdit = () => {
     trackEvent("hyperlink", "edit", "popup-ui");
@@ -211,7 +298,7 @@ export const Hyperlink = ({
   const { x, y } = getCoordsForPopover(element, appState, elementsMap);
   if (
     appState.contextMenu ||
-    appState.draggingElement ||
+    appState.selectedElementsAreBeingDragged ||
     appState.resizingElement ||
     appState.isRotating ||
     appState.openMenu ||
@@ -226,19 +313,14 @@ export const Hyperlink = ({
       style={{
         top: `${y}px`,
         left: `${x}px`,
-        width: CONTAINER_WIDTH,
-        padding: CONTAINER_PADDING,
-      }}
-      onClick={() => {
-        if (!element.link && !isEditing) {
-          setAppState({ showHyperlinkPopup: "editor" });
-        }
+        width: POPUP_WIDTH,
+        padding: POPUP_PADDING,
       }}
     >
       {isEditing ? (
         <input
           className={clsx("excalidraw-hyperlinkContainer-input")}
-          placeholder="Type or paste your link here"
+          placeholder={t("labels.link.hint")}
           ref={inputRef}
           value={inputVal}
           onChange={(event) => setInputVal(event.target.value)}
@@ -289,7 +371,7 @@ export const Hyperlink = ({
       )}
       <div className="excalidraw-hyperlinkContainer__buttons">
         {!isEditing && (
-          <ToolButton
+          <IconButton
             type="button"
             title={t("buttons.edit")}
             aria-label={t("buttons.edit")}
@@ -299,8 +381,23 @@ export const Hyperlink = ({
             icon={FreedrawIcon}
           />
         )}
+        <IconButton
+          type="button"
+          title={t("labels.linkToElement")}
+          aria-label={t("labels.linkToElement")}
+          label={t("labels.linkToElement")}
+          onClick={() => {
+            setAppState({
+              openDialog: {
+                name: "elementLinkSelector",
+                sourceElementId: element.id,
+              },
+            });
+          }}
+          icon={elementLinkIcon}
+        />
         {linkVal && !isEmbeddableElement(element) && (
-          <ToolButton
+          <IconButton
             type="button"
             title={t("buttons.remove")}
             aria-label={t("buttons.remove")}
@@ -325,7 +422,7 @@ const getCoordsForPopover = (
     { sceneX: x1 + element.width / 2, sceneY: y1 },
     appState,
   );
-  const x = viewportX - appState.offsetLeft - CONTAINER_WIDTH / 2;
+  const x = viewportX - appState.offsetLeft - POPUP_WIDTH / 2;
   const y = viewportY - appState.offsetTop - SPACE_BOTTOM;
   return { x, y };
 };
@@ -335,12 +432,10 @@ export const getContextMenuLabel = (
   appState: UIAppState,
 ) => {
   const selectedElements = getSelectedElements(elements, appState);
-  const label = selectedElements[0]?.link
-    ? isEmbeddableElement(selectedElements[0])
-      ? "labels.link.editEmbed"
-      : "labels.link.edit"
-    : isEmbeddableElement(selectedElements[0])
-    ? "labels.link.createEmbed"
+  const label = isEmbeddableElement(selectedElements[0])
+    ? "labels.link.editEmbed"
+    : selectedElements[0]?.link
+    ? "labels.link.edit"
     : "labels.link.create";
   return label;
 };
@@ -350,12 +445,31 @@ export const showHyperlinkTooltip = (
   element: NonDeletedExcalidrawElement,
   appState: AppState,
   elementsMap: ElementsMap,
+  ownerDocument: Document,
+  owner: HyperlinkTooltipOwner,
 ) => {
-  if (HYPERLINK_TOOLTIP_TIMEOUT_ID) {
-    clearTimeout(HYPERLINK_TOOLTIP_TIMEOUT_ID);
+  const ownerWindow = getTargetWindow(ownerDocument);
+  if (!ownerWindow) {
+    return;
   }
-  HYPERLINK_TOOLTIP_TIMEOUT_ID = window.setTimeout(
-    () => renderTooltip(element, appState, elementsMap),
+  // there's only ever one tooltip visible, so take over the ownership from
+  // whichever App currently holds it. Without this, a tooltip shown by
+  // another App would stay visible forever, as that App no longer receives
+  // the pointer events that would hide it.
+  if (HYPERLINK_TOOLTIP_OWNER && HYPERLINK_TOOLTIP_OWNER !== owner) {
+    clearHyperlinkTooltip();
+  } else if (HYPERLINK_TOOLTIP_TIMEOUT_ID) {
+    // same owner -> only restart the timer, leaving an already visible
+    // tooltip alone (this runs on every pointer move over a link)
+    HYPERLINK_TOOLTIP_OWNER_WINDOW?.clearTimeout(HYPERLINK_TOOLTIP_TIMEOUT_ID);
+    HYPERLINK_TOOLTIP_TIMEOUT_ID = null;
+  }
+  HYPERLINK_TOOLTIP_OWNER = owner;
+  HYPERLINK_TOOLTIP_OWNER_DOCUMENT = ownerDocument;
+  HYPERLINK_TOOLTIP_OWNER_WINDOW = ownerWindow;
+  registerTooltipWindowCleanup(ownerWindow);
+  HYPERLINK_TOOLTIP_TIMEOUT_ID = ownerWindow.setTimeout(
+    () => renderTooltip(element, appState, elementsMap, ownerDocument, owner),
     HYPERLINK_TOOLTIP_DELAY,
   );
 };
@@ -364,16 +478,27 @@ const renderTooltip = (
   element: NonDeletedExcalidrawElement,
   appState: AppState,
   elementsMap: ElementsMap,
+  ownerDocument: Document,
+  owner: HyperlinkTooltipOwner,
 ) => {
+  HYPERLINK_TOOLTIP_TIMEOUT_ID = null;
+  // ownership may have been cleared or taken over while the timer was
+  // pending (pointer left the window or another App showed its own
+  // tooltip) -> don't render a stale tooltip in an unfocused window
+  if (HYPERLINK_TOOLTIP_OWNER !== owner) {
+    return;
+  }
   if (!element.link) {
     return;
   }
 
-  const tooltipDiv = getTooltipDiv();
+  const tooltipDiv = getTooltipDiv(ownerDocument);
 
-  tooltipDiv.classList.add("excalidraw-tooltip--visible");
+  tooltipDiv.classList.add(TOOLTIP_VISIBLE_CLASS);
   tooltipDiv.style.maxWidth = "20rem";
-  tooltipDiv.textContent = element.link;
+  tooltipDiv.textContent = isElementLink(element.link)
+    ? t("labels.link.goToElement")
+    : element.link;
 
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap);
 
@@ -402,21 +527,34 @@ const renderTooltip = (
 
   IS_HYPERLINK_TOOLTIP_VISIBLE = true;
 };
-export const hideHyperlinkToolip = () => {
+const clearHyperlinkTooltip = () => {
   if (HYPERLINK_TOOLTIP_TIMEOUT_ID) {
-    clearTimeout(HYPERLINK_TOOLTIP_TIMEOUT_ID);
+    HYPERLINK_TOOLTIP_OWNER_WINDOW?.clearTimeout(HYPERLINK_TOOLTIP_TIMEOUT_ID);
+    HYPERLINK_TOOLTIP_TIMEOUT_ID = null;
   }
-  if (IS_HYPERLINK_TOOLTIP_VISIBLE) {
+  if (IS_HYPERLINK_TOOLTIP_VISIBLE && HYPERLINK_TOOLTIP_OWNER_DOCUMENT) {
     IS_HYPERLINK_TOOLTIP_VISIBLE = false;
-    getTooltipDiv().classList.remove("excalidraw-tooltip--visible");
+    hideDocumentTooltip(HYPERLINK_TOOLTIP_OWNER_DOCUMENT);
   }
+  HYPERLINK_TOOLTIP_OWNER = null;
+  HYPERLINK_TOOLTIP_OWNER_DOCUMENT = null;
+  HYPERLINK_TOOLTIP_OWNER_WINDOW = null;
+};
+
+export const hideHyperlinkToolip = (owner?: HyperlinkTooltipOwner) => {
+  // another App owns the tooltip (possibly a sibling App in the same
+  // document) -> it's not ours to hide
+  if (HYPERLINK_TOOLTIP_OWNER && HYPERLINK_TOOLTIP_OWNER !== owner) {
+    return;
+  }
+  clearHyperlinkTooltip();
 };
 
 const shouldHideLinkPopup = (
   element: NonDeletedExcalidrawElement,
   elementsMap: ElementsMap,
   appState: AppState,
-  [clientX, clientY]: Point,
+  [clientX, clientY]: GlobalPoint,
 ): Boolean => {
   const { x: sceneX, y: sceneY } = viewportCoordsToSceneCoords(
     { clientX, clientY },
@@ -425,7 +563,7 @@ const shouldHideLinkPopup = (
 
   const threshold = 15 / appState.zoom.value;
   // hitbox to prevent hiding when hovered in element bounding box
-  if (hitElementBoundingBox(sceneX, sceneY, element, elementsMap)) {
+  if (hitElementBoundingBox(pointFrom(sceneX, sceneY), element, elementsMap)) {
     return false;
   }
   const [x1, y1, x2] = getElementAbsoluteCoords(element, elementsMap);
@@ -447,9 +585,9 @@ const shouldHideLinkPopup = (
 
   if (
     clientX >= popoverX - threshold &&
-    clientX <= popoverX + CONTAINER_WIDTH + CONTAINER_PADDING * 2 + threshold &&
+    clientX <= popoverX + POPUP_WIDTH + POPUP_PADDING * 2 + threshold &&
     clientY >= popoverY - threshold &&
-    clientY <= popoverY + threshold + CONTAINER_PADDING * 2 + CONTAINER_HEIGHT
+    clientY <= popoverY + threshold + POPUP_PADDING * 2 + POPUP_HEIGHT
   ) {
     return false;
   }

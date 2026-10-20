@@ -1,10 +1,18 @@
 import { queries, buildQueries } from "@testing-library/react";
-import type { ToolType } from "../../types";
-import { TOOL_TYPE } from "../../constants";
+
+import { TOOL_TYPE } from "@excalidraw/common";
+
+import type { ToolType } from "@excalidraw/excalidraw/types";
 
 const _getAllByToolName = (container: HTMLElement, tool: ToolType | "lock") => {
   const toolTitle = tool === "lock" ? "lock" : TOOL_TYPE[tool];
-  return queries.getAllByTestId(container, `toolbar-${toolTitle}`);
+  return (
+    queries
+      .getAllByTestId(container, `toolbar-${toolTitle}`)
+      // an open ToolPopover renders options with the same testids as the
+      // toolbar buttons — "by tool name" means the toolbar-level button
+      .filter((el) => !el.closest(".tool-popover-content"))
+  );
 };
 
 const getMultipleError = (_container: any, tool: any) =>

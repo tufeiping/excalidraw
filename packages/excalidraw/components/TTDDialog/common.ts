@@ -1,18 +1,25 @@
-import type { MermaidConfig } from "@excalidraw/mermaid-to-excalidraw";
-import type { MermaidToExcalidrawResult } from "@excalidraw/mermaid-to-excalidraw/dist/interfaces";
-import { DEFAULT_EXPORT_PADDING, EDITOR_LS_KEYS } from "../../constants";
-import { convertToExcalidrawElements, exportToCanvas } from "../../index";
-import type { NonDeletedExcalidrawElement } from "../../element/types";
-import type { AppClassProperties, BinaryFiles } from "../../types";
-import { canvasToBlob } from "../../data/blob";
-import { EditorLocalStorage } from "../../data/EditorLocalStorage";
-import { t } from "../../i18n";
+import { DEFAULT_EXPORT_PADDING, EDITOR_LS_KEYS } from "@excalidraw/common";
 
-const resetPreview = ({
+import { convertToExcalidrawElements } from "@excalidraw/element";
+
+import { exportScene } from "@excalidraw/utils";
+
+import type {
+  NonDeletedExcalidrawElement,
+  Theme,
+} from "@excalidraw/element/types";
+
+import { EditorLocalStorage } from "../../data/EditorLocalStorage";
+
+import type { MermaidToExcalidrawLibProps } from "./types";
+
+import type { AppClassProperties, BinaryFiles } from "../../types";
+
+export const resetPreview = ({
   canvasRef,
   setError,
 }: {
-  canvasRef: React.RefObject<HTMLDivElement>;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
   setError: (error: Error | null) => void;
 }) => {
   const canvasNode = canvasRef.current;
@@ -29,18 +36,15 @@ const resetPreview = ({
   canvasNode.replaceChildren();
 };
 
-export interface MermaidToExcalidrawLibProps {
-  loaded: boolean;
-  api: Promise<{
-    parseMermaidToExcalidraw: (
-      definition: string,
-      config?: MermaidConfig,
-    ) => Promise<MermaidToExcalidrawResult>;
-  }>;
-}
-
-interface ConvertMermaidToExcalidrawFormatProps {
-  canvasRef: React.RefObject<HTMLDivElement>;
+export const convertMermaidToExcalidraw = async ({
+  canvasRef,
+  mermaidToExcalidrawLib,
+  mermaidDefinition,
+  setError,
+  data,
+  theme,
+}: {
+  canvasRef: React.RefObject<HTMLDivElement | null>;
   mermaidToExcalidrawLib: MermaidToExcalidrawLibProps;
   mermaidDefinition: string;
   setError: (error: Error | null) => void;
@@ -48,39 +52,45 @@ interface ConvertMermaidToExcalidrawFormatProps {
     elements: readonly NonDeletedExcalidrawElement[];
     files: BinaryFiles | null;
   }>;
-}
-
-export const convertMermaidToExcalidraw = async ({
-  canvasRef,
-  mermaidToExcalidrawLib,
-  mermaidDefinition,
-  setError,
-  data,
-}: ConvertMermaidToExcalidrawFormatProps) => {
+  theme: Theme;
+}): Promise<{ success: true } | { success: false; error?: Error }> => {
   const canvasNode = canvasRef.current;
   const parent = canvasNode?.parentElement;
 
   if (!canvasNode || !parent) {
-    return;
+    return { success: false };
   }
 
   if (!mermaidDefinition) {
     resetPreview({ canvasRef, setError });
-    return;
+    return { success: false };
   }
 
+  let ret;
   try {
     const api = await mermaidToExcalidrawLib.api;
 
-    let ret;
     try {
       ret = await api.parseMermaidToExcalidraw(mermaidDefinition);
-    } catch (err: any) {
-      ret = await api.parseMermaidToExcalidraw(
-        mermaidDefinition.replace(/"/g, "'"),
-      );
+    } catch (err: unknown) {
+      const originalParseError = err as Error;
+
+      if (!mermaidDefinition.includes('"')) {
+        return { success: false, error: originalParseError };
+      }
+
+      try {
+        ret = await api.parseMermaidToExcalidraw(
+          mermaidDefinition.replace(/"/g, "'"),
+        );
+      } catch {
+        // Keep the original error so line/column references stay aligned with
+        // the user's unmodified input.
+        return { success: false, error: originalParseError };
+      }
     }
-    const { elements, files } = ret;
+
+    const { elements, files = {} } = ret;
     setError(null);
 
     data.current = {
@@ -90,36 +100,34 @@ export const convertMermaidToExcalidraw = async ({
       files,
     };
 
-    const canvas = await exportToCanvas({
-      elements: data.current.elements,
-      files: data.current.files,
-      exportPadding: DEFAULT_EXPORT_PADDING,
-      maxWidthOrHeight:
-        Math.max(parent.offsetWidth, parent.offsetHeight) *
-        window.devicePixelRatio,
+    const canvas = await exportScene({
+      type: "canvas",
+      data: {
+        elements: data.current.elements,
+        files: data.current.files,
+      },
+      config: {
+        padding: DEFAULT_EXPORT_PADDING,
+        maxWidthOrHeight:
+          Math.max(parent.offsetWidth, parent.offsetHeight) *
+          (parent.ownerDocument.defaultView?.devicePixelRatio ?? 1),
+        theme,
+      },
     });
-    // if converting to blob fails, there's some problem that will
-    // likely prevent preview and export (e.g. canvas too big)
-    try {
-      await canvasToBlob(canvas);
-    } catch (e: any) {
-      if (e.name === "CANVAS_POSSIBLY_TOO_BIG") {
-        throw new Error(t("canvasError.canvasTooBig"));
-      }
-      throw e;
-    }
+
     parent.style.background = "var(--default-bg-color)";
     canvasNode.replaceChildren(canvas);
+    return { success: true };
   } catch (err: any) {
     parent.style.background = "var(--default-bg-color)";
     if (mermaidDefinition) {
       setError(err);
     }
 
-    throw err;
+    // Return error so caller can display meaningful error message
+    return { success: false, error: err };
   }
 };
-
 export const saveMermaidDataToStorage = (mermaidDefinition: string) => {
   EditorLocalStorage.set(
     EDITOR_LS_KEYS.MERMAID_TO_EXCALIDRAW,
@@ -151,7 +159,7 @@ export const insertToEditor = ({
     elements: newElements,
     files,
     position: "center",
-    fitToContent: true,
+    fit: "scale-down",
   });
   app.setOpenDialog(null);
 

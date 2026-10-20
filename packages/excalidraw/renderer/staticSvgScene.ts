@@ -1,42 +1,61 @@
-import type { Drawable } from "roughjs/bin/core";
-import type { RoughSVG } from "roughjs/bin/svg";
 import {
+  BOUND_TEXT_PADDING,
   FRAME_STYLE,
   MAX_DECIMALS_FOR_SVG_EXPORT,
-  MIME_TYPES,
   SVG_NS,
-} from "../constants";
-import { normalizeLink, toValidURL } from "../data/url";
-import { getElementAbsoluteCoords } from "../element";
+  THEME,
+  DARK_THEME_FILTER,
+  getFontFamilyString,
+  isRTL,
+  isTestEnv,
+  getVerticalOffset,
+  applyDarkModeFilter,
+  MIME_TYPES,
+  STICKY_NOTE_EDGE_SHADOW_OPACITY,
+  STICKY_NOTE_EDGE_SHADOW_WIDTH,
+  STICKY_NOTE_FOOTER,
+  STICKY_NOTE_SHADOW_OPACITY,
+} from "@excalidraw/common";
+import { normalizeLink, toValidURL } from "@excalidraw/common";
+import { hashString } from "@excalidraw/element";
+import { getUncroppedWidthAndHeight } from "@excalidraw/element";
 import {
   createPlaceholderEmbeddableLabel,
   getEmbedLink,
-} from "../element/embeddable";
-import { LinearElementEditor } from "../element/linearElementEditor";
-import {
-  getBoundTextElement,
-  getContainerElement,
-  getLineHeightInPx,
-  getVerticalOffset,
-} from "../element/textElement";
+} from "@excalidraw/element";
+import { LinearElementEditor } from "@excalidraw/element";
+import { getBoundTextElement, getContainerElement } from "@excalidraw/element";
+import { getLineHeightInPx } from "@excalidraw/element";
 import {
   isArrowElement,
   isIframeLikeElement,
   isInitializedImageElement,
   isTextElement,
-} from "../element/typeChecks";
+} from "@excalidraw/element";
+
+import { getContainingFrame } from "@excalidraw/element";
+
+import { getCornerRadius, isPathALoop } from "@excalidraw/element";
+
+import { ShapeCache } from "@excalidraw/element";
+import {
+  getStickyNoteFooter,
+  getStickyNotePathCommands,
+  type StickyNotePathCommand,
+} from "@excalidraw/element";
+
+import { getElementAbsoluteCoords } from "@excalidraw/element";
+
 import type {
   ExcalidrawElement,
   ExcalidrawTextElementWithContainer,
   NonDeletedExcalidrawElement,
-} from "../element/types";
-import { getContainingFrame } from "../frame";
-import { getCornerRadius, isPathALoop } from "../math";
-import { ShapeCache } from "../scene/ShapeCache";
+} from "@excalidraw/element/types";
+
 import type { RenderableElementsMap, SVGRenderConfig } from "../scene/types";
 import type { AppState, BinaryFiles } from "../types";
-import { getFontFamilyString, isRTL, isTestEnv } from "../utils";
-import { getFreeDrawSvgPath, IMAGE_INVERT_FILTER } from "./renderElement";
+import type { Drawable } from "roughjs/bin/core";
+import type { RoughSVG } from "roughjs/bin/svg";
 
 const roughSVGDrawWithPrecision = (
   rsvg: RoughSVG,
@@ -55,7 +74,7 @@ const roughSVGDrawWithPrecision = (
 };
 
 const maybeWrapNodesInFrameClipPath = (
-  element: NonDeletedExcalidrawElement,
+  element: Readonly<NonDeletedExcalidrawElement>,
   root: SVGElement,
   nodes: SVGElement[],
   frameRendering: AppState["frameRendering"],
@@ -66,7 +85,7 @@ const maybeWrapNodesInFrameClipPath = (
   }
   const frame = getContainingFrame(element, elementsMap);
   if (frame) {
-    const g = root.ownerDocument!.createElementNS(SVG_NS, "g");
+    const g = root.ownerDocument.createElementNS(SVG_NS, "g");
     g.setAttributeNS(SVG_NS, "clip-path", `url(#${frame.id})`);
     nodes.forEach((node) => g.appendChild(node));
     return g;
@@ -76,7 +95,7 @@ const maybeWrapNodesInFrameClipPath = (
 };
 
 const renderElementToSvg = (
-  element: NonDeletedExcalidrawElement,
+  element: Readonly<NonDeletedExcalidrawElement>,
   elementsMap: RenderableElementsMap,
   rsvg: RoughSVG,
   svgRoot: SVGElement,
@@ -112,7 +131,7 @@ const renderElementToSvg = (
 
   // if the element has a link, create an anchor tag and make that the new root
   if (element.link) {
-    const anchorTag = svgRoot.ownerDocument!.createElementNS(SVG_NS, "a");
+    const anchorTag = svgRoot.ownerDocument.createElementNS(SVG_NS, "a");
     anchorTag.setAttribute("href", normalizeLink(element.link));
     root.appendChild(anchorTag);
     root = anchorTag;
@@ -136,10 +155,123 @@ const renderElementToSvg = (
       // this should not happen
       throw new Error("Selection rendering is not supported for SVG");
     }
+    case "stickynote": {
+      const getPathData = (commands: StickyNotePathCommand[]) =>
+        commands
+          .map((command) => {
+            if (command.type === "move") {
+              return `M ${command.point.x} ${command.point.y}`;
+            }
+            if (command.type === "line") {
+              return `L ${command.point.x} ${command.point.y}`;
+            }
+            return `Q ${command.control.x} ${command.control.y} ${command.point.x} ${command.point.y}`;
+          })
+          .join(" ")
+          .concat(" Z");
+
+      const createPath = (
+        commands: StickyNotePathCommand[],
+        fill: string,
+        fillOpacity?: number,
+      ) => {
+        const path = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+        path.setAttribute("d", getPathData(commands));
+        path.setAttribute("fill", fill);
+        if (typeof fillOpacity !== "undefined") {
+          path.setAttribute("fill-opacity", `${fillOpacity}`);
+        }
+        path.setAttribute("stroke", "none");
+        return path;
+      };
+
+      const group = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      group.setAttribute(
+        "transform",
+        `translate(${offsetX || 0} ${
+          offsetY || 0
+        }) rotate(${degree} ${cx} ${cy})`,
+      );
+      if (opacity !== 1) {
+        group.setAttribute("opacity", `${opacity}`);
+      }
+
+      const shadow = createPath(
+        getStickyNotePathCommands(element, { shadow: true }),
+        "#000",
+        STICKY_NOTE_SHADOW_OPACITY,
+      );
+      const commands = getStickyNotePathCommands(element);
+      const rect = createPath(
+        commands,
+        applyDarkModeFilter(
+          element.backgroundColor,
+          renderConfig.theme === THEME.DARK,
+        ),
+      );
+      const clipPath = svgRoot.ownerDocument.createElementNS(
+        SVG_NS,
+        "clipPath",
+      );
+      clipPath.setAttribute("id", `sticky-note-clipPath-${element.id}`);
+      clipPath.setAttribute("clipPathUnits", "userSpaceOnUse");
+      clipPath.appendChild(createPath(commands, "#000"));
+      addToRoot(clipPath, element);
+
+      const edgeShadow = createPath(commands, "none");
+      edgeShadow.setAttribute("stroke", "#000");
+      edgeShadow.setAttribute(
+        "stroke-opacity",
+        `${STICKY_NOTE_EDGE_SHADOW_OPACITY}`,
+      );
+      edgeShadow.setAttribute(
+        "stroke-width",
+        `${STICKY_NOTE_EDGE_SHADOW_WIDTH * 2}`,
+      );
+      edgeShadow.setAttribute("clip-path", `url(#${clipPath.id})`);
+
+      group.appendChild(shadow);
+      group.appendChild(rect);
+      group.appendChild(edgeShadow);
+
+      const footer = getStickyNoteFooter(element);
+      if (footer) {
+        const dateText = svgRoot.ownerDocument.createElementNS(SVG_NS, "text");
+        dateText.setAttribute("x", `${footer.x}`);
+        dateText.setAttribute("y", `${footer.y}`);
+        dateText.setAttribute("font-family", STICKY_NOTE_FOOTER.fontFamily);
+        dateText.setAttribute("font-size", `${STICKY_NOTE_FOOTER.fontSize}px`);
+        // `text-anchor` is logical in SVG: pin the direction so an RTL host
+        // page can't flip the label to the left edge
+        dateText.setAttribute("text-anchor", "end");
+        dateText.setAttribute("direction", "ltr");
+        dateText.setAttribute(
+          "fill",
+          applyDarkModeFilter(
+            element.strokeColor,
+            renderConfig.theme === THEME.DARK,
+          ),
+        );
+        dateText.setAttribute("fill-opacity", `${STICKY_NOTE_FOOTER.opacity}`);
+        dateText.textContent = footer.text;
+        group.appendChild(dateText);
+      }
+
+      const g = maybeWrapNodesInFrameClipPath(
+        element,
+        root,
+        [group],
+        renderConfig.frameRendering,
+        elementsMap,
+      );
+
+      addToRoot(g || group, element);
+      break;
+    }
     case "rectangle":
     case "diamond":
     case "ellipse": {
-      const shape = ShapeCache.generateElementShape(element, null);
+      const shape = ShapeCache.generateElementShape(element, renderConfig);
       const node = roughSVGDrawWithPrecision(
         rsvg,
         shape,
@@ -191,8 +323,10 @@ const renderElementToSvg = (
       );
       addToRoot(node, element);
 
-      const label: ExcalidrawElement =
-        createPlaceholderEmbeddableLabel(element);
+      const label = createPlaceholderEmbeddableLabel(
+        element,
+        renderConfig.renderEnvironment,
+      );
       renderElementToSvg(
         label,
         elementsMap,
@@ -234,7 +368,7 @@ const renderElementToSvg = (
         renderConfig.renderEmbeddables === false ||
         embedLink?.type === "document"
       ) {
-        const anchorTag = svgRoot.ownerDocument!.createElementNS(SVG_NS, "a");
+        const anchorTag = svgRoot.ownerDocument.createElementNS(SVG_NS, "a");
         anchorTag.setAttribute("href", normalizeLink(element.link || ""));
         anchorTag.setAttribute("target", "_blank");
         anchorTag.setAttribute("rel", "noopener noreferrer");
@@ -242,18 +376,18 @@ const renderElementToSvg = (
 
         embeddableNode.appendChild(anchorTag);
       } else {
-        const foreignObject = svgRoot.ownerDocument!.createElementNS(
+        const foreignObject = svgRoot.ownerDocument.createElementNS(
           SVG_NS,
           "foreignObject",
         );
         foreignObject.style.width = `${element.width}px`;
         foreignObject.style.height = `${element.height}px`;
         foreignObject.style.border = "none";
-        const div = foreignObject.ownerDocument!.createElementNS(SVG_NS, "div");
+        const div = foreignObject.ownerDocument.createElementNS(SVG_NS, "div");
         div.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
         div.style.width = "100%";
         div.style.height = "100%";
-        const iframe = div.ownerDocument!.createElement("iframe");
+        const iframe = div.ownerDocument.createElement("iframe");
         iframe.src = embedLink?.link ?? "";
         iframe.style.width = "100%";
         iframe.style.height = "100%";
@@ -273,15 +407,23 @@ const renderElementToSvg = (
     case "line":
     case "arrow": {
       const boundText = getBoundTextElement(element, elementsMap);
-      const maskPath = svgRoot.ownerDocument!.createElementNS(SVG_NS, "mask");
+      const maskPath = svgRoot.ownerDocument.createElementNS(SVG_NS, "mask");
       if (boundText) {
         maskPath.setAttribute("id", `mask-${element.id}`);
-        const maskRectVisible = svgRoot.ownerDocument!.createElementNS(
+        const maskRectVisible = svgRoot.ownerDocument.createElementNS(
           SVG_NS,
           "rect",
         );
         offsetX = offsetX || 0;
         offsetY = offsetY || 0;
+        // Pin the mask to user space; the default maskUnits="objectBoundingBox"
+        // collapses to zero area for axis-aligned arrows (zero-size bbox),
+        // hiding the whole line from SVG exports (#11439).
+        maskPath.setAttribute("maskUnits", "userSpaceOnUse");
+        maskPath.setAttribute("x", "0");
+        maskPath.setAttribute("y", "0");
+        maskPath.setAttribute("width", `${element.width + 100 + offsetX}`);
+        maskPath.setAttribute("height", `${element.height + 100 + offsetY}`);
         maskRectVisible.setAttribute("x", "0");
         maskRectVisible.setAttribute("y", "0");
         maskRectVisible.setAttribute("fill", "#fff");
@@ -295,7 +437,7 @@ const renderElementToSvg = (
         );
 
         maskPath.appendChild(maskRectVisible);
-        const maskRectInvisible = svgRoot.ownerDocument!.createElementNS(
+        const maskRectInvisible = svgRoot.ownerDocument.createElementNS(
           SVG_NS,
           "rect",
         );
@@ -305,18 +447,27 @@ const renderElementToSvg = (
           elementsMap,
         );
 
-        const maskX = offsetX + boundTextCoords.x - element.x;
-        const maskY = offsetY + boundTextCoords.y - element.y;
+        // the same padded hole the canvas renderers cut around the label
+        const maskX =
+          offsetX + boundTextCoords.x - element.x - BOUND_TEXT_PADDING;
+        const maskY =
+          offsetY + boundTextCoords.y - element.y - BOUND_TEXT_PADDING;
 
         maskRectInvisible.setAttribute("x", maskX.toString());
         maskRectInvisible.setAttribute("y", maskY.toString());
         maskRectInvisible.setAttribute("fill", "#000");
-        maskRectInvisible.setAttribute("width", `${boundText.width}`);
-        maskRectInvisible.setAttribute("height", `${boundText.height}`);
+        maskRectInvisible.setAttribute(
+          "width",
+          `${boundText.width + BOUND_TEXT_PADDING * 2}`,
+        );
+        maskRectInvisible.setAttribute(
+          "height",
+          `${boundText.height + BOUND_TEXT_PADDING * 2}`,
+        );
         maskRectInvisible.setAttribute("opacity", "1");
         maskPath.appendChild(maskRectInvisible);
       }
-      const group = svgRoot.ownerDocument!.createElementNS(SVG_NS, "g");
+      const group = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
       if (boundText) {
         group.setAttribute("mask", `url(#mask-${element.id})`);
       }
@@ -366,42 +517,64 @@ const renderElementToSvg = (
       break;
     }
     case "freedraw": {
-      const backgroundFillShape = ShapeCache.generateElementShape(
-        element,
-        renderConfig,
-      );
-      const node = backgroundFillShape
-        ? roughSVGDrawWithPrecision(
+      const wrapper = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+
+      const shapes = ShapeCache.generateElementShape(element, renderConfig);
+      // always ordered as [background, stroke]
+      for (const shape of shapes) {
+        if (typeof shape === "string") {
+          // stroke (SVGPathString)
+
+          const path = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+          path.setAttribute(
+            "fill",
+            applyDarkModeFilter(
+              element.strokeColor,
+              renderConfig.theme === THEME.DARK,
+            ),
+          );
+          path.setAttribute("d", shape);
+          wrapper.appendChild(path);
+        } else {
+          // background (Drawable)
+
+          const bgNode = roughSVGDrawWithPrecision(
             rsvg,
-            backgroundFillShape,
+            shape,
             MAX_DECIMALS_FOR_SVG_EXPORT,
-          )
-        : svgRoot.ownerDocument!.createElementNS(SVG_NS, "g");
-      if (opacity !== 1) {
-        node.setAttribute("stroke-opacity", `${opacity}`);
-        node.setAttribute("fill-opacity", `${opacity}`);
+          );
+
+          // if children wrapped in <g>, unwrap it
+          if (bgNode.nodeName === "g") {
+            while (bgNode.firstChild) {
+              wrapper.appendChild(bgNode.firstChild);
+            }
+          } else {
+            wrapper.appendChild(bgNode);
+          }
+        }
       }
-      node.setAttribute(
+      if (opacity !== 1) {
+        wrapper.setAttribute("stroke-opacity", `${opacity}`);
+        wrapper.setAttribute("fill-opacity", `${opacity}`);
+      }
+      wrapper.setAttribute(
         "transform",
         `translate(${offsetX || 0} ${
           offsetY || 0
         }) rotate(${degree} ${cx} ${cy})`,
       );
-      node.setAttribute("stroke", "none");
-      const path = svgRoot.ownerDocument!.createElementNS(SVG_NS, "path");
-      path.setAttribute("fill", element.strokeColor);
-      path.setAttribute("d", getFreeDrawSvgPath(element));
-      node.appendChild(path);
+      wrapper.setAttribute("stroke", "none");
 
       const g = maybeWrapNodesInFrameClipPath(
         element,
         root,
-        [node],
+        [wrapper],
         renderConfig.frameRendering,
         elementsMap,
       );
 
-      addToRoot(g || node, element);
+      addToRoot(g || wrapper, element);
       break;
     }
     case "image": {
@@ -410,36 +583,67 @@ const renderElementToSvg = (
       const fileData =
         isInitializedImageElement(element) && files[element.fileId];
       if (fileData) {
-        const symbolId = `image-${fileData.id}`;
+        const { reuseImages = true } = renderConfig;
+
+        let symbolId = `image-${fileData.id}`;
+
+        let uncroppedWidth = element.width;
+        let uncroppedHeight = element.height;
+        if (element.crop) {
+          ({ width: uncroppedWidth, height: uncroppedHeight } =
+            getUncroppedWidthAndHeight(element));
+
+          symbolId = `image-crop-${fileData.id}-${hashString(
+            `${uncroppedWidth}x${uncroppedHeight}`,
+          )}`;
+        }
+
+        if (!reuseImages) {
+          symbolId = `image-${element.id}`;
+        }
+
         let symbol = svgRoot.querySelector(`#${symbolId}`);
         if (!symbol) {
-          symbol = svgRoot.ownerDocument!.createElementNS(SVG_NS, "symbol");
+          symbol = svgRoot.ownerDocument.createElementNS(SVG_NS, "symbol");
           symbol.id = symbolId;
 
-          const image = svgRoot.ownerDocument!.createElementNS(SVG_NS, "image");
-
-          image.setAttribute("width", "100%");
-          image.setAttribute("height", "100%");
+          const image = svgRoot.ownerDocument.createElementNS(SVG_NS, "image");
           image.setAttribute("href", fileData.dataURL);
+          image.setAttribute("preserveAspectRatio", "none");
+
+          if (element.crop || !reuseImages) {
+            image.setAttribute("width", `${uncroppedWidth}`);
+            image.setAttribute("height", `${uncroppedHeight}`);
+          } else {
+            image.setAttribute("width", "100%");
+            image.setAttribute("height", "100%");
+          }
 
           symbol.appendChild(image);
 
-          root.prepend(symbol);
+          (root.querySelector("defs") || root).prepend(symbol);
         }
 
-        const use = svgRoot.ownerDocument!.createElementNS(SVG_NS, "use");
+        const use = svgRoot.ownerDocument.createElementNS(SVG_NS, "use");
         use.setAttribute("href", `#${symbolId}`);
 
-        // in dark theme, revert the image color filter
-        if (
-          renderConfig.exportWithDarkMode &&
-          fileData.mimeType !== MIME_TYPES.svg
-        ) {
-          use.setAttribute("filter", IMAGE_INVERT_FILTER);
+        let normalizedCropX = 0;
+        let normalizedCropY = 0;
+
+        if (element.crop) {
+          const { width: uncroppedWidth, height: uncroppedHeight } =
+            getUncroppedWidthAndHeight(element);
+          normalizedCropX =
+            element.crop.x / (element.crop.naturalWidth / uncroppedWidth);
+          normalizedCropY =
+            element.crop.y / (element.crop.naturalHeight / uncroppedHeight);
         }
 
-        use.setAttribute("width", `${width}`);
-        use.setAttribute("height", `${height}`);
+        const adjustedCenterX = cx + normalizedCropX;
+        const adjustedCenterY = cy + normalizedCropY;
+
+        use.setAttribute("width", `${width + normalizedCropX}`);
+        use.setAttribute("height", `${height + normalizedCropY}`);
         use.setAttribute("opacity", `${opacity}`);
 
         // We first apply `scale` transforms (horizontal/vertical mirroring)
@@ -449,31 +653,60 @@ const renderElementToSvg = (
         // the transformations correctly (the transform-origin was not being
         // applied correctly).
         if (element.scale[0] !== 1 || element.scale[1] !== 1) {
-          const translateX = element.scale[0] !== 1 ? -width : 0;
-          const translateY = element.scale[1] !== 1 ? -height : 0;
           use.setAttribute(
             "transform",
-            `scale(${element.scale[0]}, ${element.scale[1]}) translate(${translateX} ${translateY})`,
+            `translate(${adjustedCenterX} ${adjustedCenterY}) scale(${
+              element.scale[0]
+            } ${
+              element.scale[1]
+            }) translate(${-adjustedCenterX} ${-adjustedCenterY})`,
           );
         }
 
-        const g = svgRoot.ownerDocument!.createElementNS(SVG_NS, "g");
+        const g = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+
+        if (
+          renderConfig.theme === THEME.DARK &&
+          fileData.mimeType === MIME_TYPES.svg
+        ) {
+          g.setAttribute("filter", DARK_THEME_FILTER);
+        }
+
+        if (element.crop) {
+          const mask = svgRoot.ownerDocument.createElementNS(SVG_NS, "mask");
+          mask.setAttribute("id", `mask-image-crop-${element.id}`);
+          mask.setAttribute("fill", "#fff");
+          const maskRect = svgRoot.ownerDocument.createElementNS(
+            SVG_NS,
+            "rect",
+          );
+
+          maskRect.setAttribute("x", `${normalizedCropX}`);
+          maskRect.setAttribute("y", `${normalizedCropY}`);
+          maskRect.setAttribute("width", `${width}`);
+          maskRect.setAttribute("height", `${height}`);
+
+          mask.appendChild(maskRect);
+          root.appendChild(mask);
+          g.setAttribute("mask", `url(#${mask.id})`);
+        }
+
         g.appendChild(use);
         g.setAttribute(
           "transform",
-          `translate(${offsetX || 0} ${
-            offsetY || 0
-          }) rotate(${degree} ${cx} ${cy})`,
+          `translate(${offsetX - normalizedCropX} ${
+            offsetY - normalizedCropY
+          }) rotate(${degree} ${adjustedCenterX} ${adjustedCenterY})`,
         );
 
         if (element.roundness) {
-          const clipPath = svgRoot.ownerDocument!.createElementNS(
+          const clipPath = svgRoot.ownerDocument.createElementNS(
             SVG_NS,
             "clipPath",
           );
           clipPath.id = `image-clipPath-${element.id}`;
-
-          const clipRect = svgRoot.ownerDocument!.createElementNS(
+          clipPath.setAttribute("clipPathUnits", "userSpaceOnUse");
+          const clipRect = svgRoot.ownerDocument.createElementNS(
             SVG_NS,
             "rect",
           );
@@ -481,6 +714,10 @@ const renderElementToSvg = (
             Math.min(element.width, element.height),
             element,
           );
+          const clipOffsetX = element.crop ? normalizedCropX : 0;
+          const clipOffsetY = element.crop ? normalizedCropY : 0;
+          clipRect.setAttribute("x", `${clipOffsetX}`);
+          clipRect.setAttribute("y", `${clipOffsetY}`);
           clipRect.setAttribute("width", `${element.width}`);
           clipRect.setAttribute("height", `${element.height}`);
           clipRect.setAttribute("rx", `${radius}`);
@@ -509,7 +746,7 @@ const renderElementToSvg = (
         renderConfig.frameRendering.enabled &&
         renderConfig.frameRendering.outline
       ) {
-        const rect = document.createElementNS(SVG_NS, "rect");
+        const rect = svgRoot.ownerDocument.createElementNS(SVG_NS, "rect");
 
         rect.setAttribute(
           "transform",
@@ -525,7 +762,13 @@ const renderElementToSvg = (
         rect.setAttribute("ry", FRAME_STYLE.radius.toString());
 
         rect.setAttribute("fill", "none");
-        rect.setAttribute("stroke", FRAME_STYLE.strokeColor);
+        rect.setAttribute(
+          "stroke",
+          applyDarkModeFilter(
+            FRAME_STYLE.strokeColor,
+            renderConfig.theme === THEME.DARK,
+          ),
+        );
         rect.setAttribute("stroke-width", FRAME_STYLE.strokeWidth.toString());
 
         addToRoot(rect, element);
@@ -534,7 +777,7 @@ const renderElementToSvg = (
     }
     default: {
       if (isTextElement(element)) {
-        const node = svgRoot.ownerDocument!.createElementNS(SVG_NS, "g");
+        const node = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
         if (opacity !== 1) {
           node.setAttribute("stroke-opacity", `${opacity}`);
           node.setAttribute("fill-opacity", `${opacity}`);
@@ -570,13 +813,19 @@ const renderElementToSvg = (
             ? "end"
             : "start";
         for (let i = 0; i < lines.length; i++) {
-          const text = svgRoot.ownerDocument!.createElementNS(SVG_NS, "text");
+          const text = svgRoot.ownerDocument.createElementNS(SVG_NS, "text");
           text.textContent = lines[i];
           text.setAttribute("x", `${horizontalOffset}`);
           text.setAttribute("y", `${i * lineHeightPx + verticalOffset}`);
           text.setAttribute("font-family", getFontFamilyString(element));
           text.setAttribute("font-size", `${element.fontSize}px`);
-          text.setAttribute("fill", element.strokeColor);
+          text.setAttribute(
+            "fill",
+            applyDarkModeFilter(
+              element.strokeColor,
+              renderConfig.theme === THEME.DARK,
+            ),
+          );
           text.setAttribute("text-anchor", textAnchor);
           text.setAttribute("style", "white-space: pre;");
           text.setAttribute("direction", direction);
@@ -640,9 +889,9 @@ export const renderSceneToSvg = (
           );
 
           const boundTextElement = getBoundTextElement(element, elementsMap);
-          if (boundTextElement) {
+          if (boundTextElement?.isDeleted === false) {
             renderElementToSvg(
-              boundTextElement,
+              boundTextElement as Readonly<NonDeletedExcalidrawElement>,
               elementsMap,
               rsvg,
               svgRoot,
@@ -650,6 +899,11 @@ export const renderSceneToSvg = (
               boundTextElement.x + renderConfig.offsetX,
               boundTextElement.y + renderConfig.offsetY,
               renderConfig,
+            );
+          } else if (boundTextElement) {
+            // SAFETY: This should never happen, but log it just in case
+            console.error(
+              "[NONDELETED][INVARIANT] Skipped rendering deleted bound text element",
             );
           }
         } catch (error: any) {

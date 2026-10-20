@@ -1,16 +1,24 @@
-import { render, waitFor } from "./test-utils";
-import { Excalidraw } from "../index";
-import { API } from "./helpers/api";
-import {
-  encodePngMetadata,
-  encodeSvgMetadata,
-  decodeSvgMetadata,
-} from "../data/image";
-import { serializeAsJSON } from "../data/json";
-import { exportToSvg } from "../scene/export";
-import type { FileId } from "../element/types";
-import { getDataURL } from "../data/blob";
+import React from "react";
+
+import { SVG_NS } from "@excalidraw/common";
+
+import type { FileId, FractionalIndex } from "@excalidraw/element/types";
+
 import { getDefaultAppState } from "../appState";
+import * as clipboardModule from "../clipboard";
+import { exportCanvas, prepareElementsForExport } from "../data";
+import { getDataURL } from "../data/blob";
+import { encodePngMetadata } from "../data/image";
+import { serializeAsJSON } from "../data/json";
+import { Excalidraw } from "../index";
+import {
+  decodeSvgBase64Payload,
+  encodeSvgBase64Payload,
+  exportScene,
+} from "../scene/export";
+
+import { API } from "./helpers/api";
+import { render, waitFor } from "./test-utils";
 
 const { h } = window;
 
@@ -20,6 +28,9 @@ const testElements = [
       type: "text",
       id: "A",
       text: "😀",
+      // a valid index, as in a real scene (restoring on export would
+      // otherwise re-index it, bumping its version with a random nonce)
+      index: "a0" as FractionalIndex,
     }),
     // can't get jsdom text measurement to work so this is a temp hack
     // to ensure the element isn't stripped as invisible
@@ -51,7 +62,7 @@ describe("export", () => {
       blob: pngBlob,
       metadata: serializeAsJSON(testElements, h.state, {}, "local"),
     });
-    API.drop(pngBlobEmbedded);
+    await API.drop([{ kind: "file", file: pngBlobEmbedded }]);
 
     await waitFor(() => {
       expect(h.elements).toEqual([
@@ -61,17 +72,69 @@ describe("export", () => {
   });
 
   it("test encoding/decoding scene for SVG export", async () => {
-    const encoded = await encodeSvgMetadata({
-      text: serializeAsJSON(testElements, h.state, {}, "local"),
+    const metadataElement = document.createElementNS(SVG_NS, "metadata");
+
+    encodeSvgBase64Payload({
+      metadataElement,
+      payload: serializeAsJSON(testElements, h.state, {}, "local"),
     });
-    const decoded = JSON.parse(await decodeSvgMetadata({ svg: encoded }));
+
+    const decoded = JSON.parse(
+      decodeSvgBase64Payload({ svg: metadataElement.innerHTML }),
+    );
     expect(decoded.elements).toEqual([
       expect.objectContaining({ type: "text", text: "😀" }),
     ]);
   });
 
+  it("exports SVG at the export scale", async () => {
+    const copySpy = vi
+      .spyOn(clipboardModule, "copyTextToSystemClipboard")
+      .mockResolvedValue();
+    const exportedWidthAt = async (exportScale: number) => {
+      const appState = { ...h.state, exportScale };
+      const { exportedElements } = prepareElementsForExport(
+        testElements,
+        appState,
+        false,
+      );
+      await exportCanvas(
+        "clipboard-svg",
+        exportedElements,
+        appState,
+        {},
+        { exportingFrame: null },
+      );
+      const svg = copySpy.mock.lastCall![0] as string;
+      return Number(/<svg[^>]* width="([\d.]+)"/.exec(svg)![1]);
+    };
+
+    expect(await exportedWidthAt(2)).toBe((await exportedWidthAt(1)) * 2);
+    copySpy.mockRestore();
+  });
+
+  it("export svg-embedded scene", async () => {
+    const svg = await exportScene({
+      type: "svg",
+      data: {
+        elements: testElements,
+        appState: getDefaultAppState(),
+        files: {},
+      },
+      config: { embedScene: true },
+    });
+    const svgText = svg.outerHTML;
+
+    expect(svgText).toMatchSnapshot(`svg-embdedded scene export output`);
+  });
+
   it("import embedded png (legacy v1)", async () => {
-    API.drop(await API.loadFile("./fixtures/test_embedded_v1.png"));
+    await API.drop([
+      {
+        kind: "file",
+        file: await API.loadFile("./fixtures/test_embedded_v1.png"),
+      },
+    ]);
     await waitFor(() => {
       expect(h.elements).toEqual([
         expect.objectContaining({ type: "text", text: "test" }),
@@ -80,7 +143,12 @@ describe("export", () => {
   });
 
   it("import embedded png (v2)", async () => {
-    API.drop(await API.loadFile("./fixtures/smiley_embedded_v2.png"));
+    await API.drop([
+      {
+        kind: "file",
+        file: await API.loadFile("./fixtures/smiley_embedded_v2.png"),
+      },
+    ]);
     await waitFor(() => {
       expect(h.elements).toEqual([
         expect.objectContaining({ type: "text", text: "😀" }),
@@ -89,7 +157,12 @@ describe("export", () => {
   });
 
   it("import embedded svg (legacy v1)", async () => {
-    API.drop(await API.loadFile("./fixtures/test_embedded_v1.svg"));
+    await API.drop([
+      {
+        kind: "file",
+        file: await API.loadFile("./fixtures/test_embedded_v1.svg"),
+      },
+    ]);
     await waitFor(() => {
       expect(h.elements).toEqual([
         expect.objectContaining({ type: "text", text: "test" }),
@@ -98,7 +171,12 @@ describe("export", () => {
   });
 
   it("import embedded svg (v2)", async () => {
-    API.drop(await API.loadFile("./fixtures/smiley_embedded_v2.svg"));
+    await API.drop([
+      {
+        kind: "file",
+        file: await API.loadFile("./fixtures/smiley_embedded_v2.svg"),
+      },
+    ]);
     await waitFor(() => {
       expect(h.elements).toEqual([
         expect.objectContaining({ type: "text", text: "😀" }),
@@ -151,7 +229,7 @@ describe("export", () => {
         angle: normalizeAngle(315),
       }),
     ];
-    const appState = { ...getDefaultAppState(), exportBackground: false };
+    const appState = getDefaultAppState();
     const files = {
       file_A: {
         id: "file_A" as FileId,
@@ -162,7 +240,15 @@ describe("export", () => {
       },
     } as const;
 
-    const svg = await exportToSvg(elements, appState, files);
+    const svg = await exportScene({
+      type: "svg",
+      data: {
+        elements,
+        appState,
+        files,
+      },
+      config: { canvasBackgroundColor: false },
+    });
 
     const svgText = svg.outerHTML;
 

@@ -1,21 +1,32 @@
-import ReactDOM from "react-dom";
-import type { ExcalidrawElement } from "../element/types";
-import { CODES, KEYS } from "../keys";
+import React from "react";
+import { vi } from "vitest";
+
+import {
+  FONT_FAMILY,
+  CODES,
+  KEYS,
+  reseed,
+  MQ_MIN_WIDTH_DESKTOP,
+} from "@excalidraw/common";
+
+import { setDateTimeForTests } from "@excalidraw/common";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
 import { Excalidraw } from "../index";
-import { reseed } from "../random";
 import * as StaticScene from "../renderer/staticScene";
-import { setDateTimeForTests } from "../utils";
+
 import { API } from "./helpers/api";
 import { Keyboard, Pointer, UI } from "./helpers/ui";
 import {
   assertSelectedElements,
+  checkpointHistory,
   fireEvent,
   render,
   screen,
   togglePopover,
+  unmountComponent,
 } from "./test-utils";
-import { FONT_FAMILY } from "../constants";
-import { vi } from "vitest";
 
 const { h } = window;
 
@@ -35,15 +46,15 @@ const checkpoint = (name: string) => {
     `[${name}] number of renders`,
   );
   expect(h.state).toMatchSnapshot(`[${name}] appState`);
-  expect(h.history).toMatchSnapshot(`[${name}] history`);
   expect(h.elements.length).toMatchSnapshot(`[${name}] number of elements`);
   h.elements.forEach((element, i) =>
     expect(element).toMatchSnapshot(`[${name}] element ${i}`),
   );
+
+  checkpointHistory(h.history, name);
 };
 beforeEach(async () => {
-  // Unmount ReactDOM from root
-  ReactDOM.unmountComponentAtNode(document.getElementById("root")!);
+  unmountComponent();
 
   localStorage.clear();
   renderStaticScene.mockClear();
@@ -55,7 +66,7 @@ beforeEach(async () => {
   finger2.reset();
 
   await render(<Excalidraw handleKeyboardGlobally={true} />);
-  h.setState({ height: 768, width: 1024 });
+  API.setAppState({ height: 768, width: MQ_MIN_WIDTH_DESKTOP });
 });
 
 afterEach(() => {
@@ -145,7 +156,7 @@ describe("regression tests", () => {
         expect(h.state.activeTool.type).toBe(shape);
 
         mouse.down(10, 10);
-        mouse.up(10, 10);
+        mouse.up(30, 30);
 
         if (shouldSelect) {
           expect(API.getSelectedElement().type).toBe(shape);
@@ -358,7 +369,6 @@ describe("regression tests", () => {
     Keyboard.withModifierKeys({ ctrl: true }, () => {
       Keyboard.keyPress(KEYS.Z);
       Keyboard.keyPress(KEYS.Z);
-      Keyboard.keyPress(KEYS.Z);
     });
     expect(h.elements.filter((element) => !element.isDeleted).length).toBe(2);
     Keyboard.withModifierKeys({ ctrl: true }, () => {
@@ -457,7 +467,8 @@ describe("regression tests", () => {
 
     mouse.reset();
     mouse.down();
-    mouse.restorePosition(...end);
+    mouse.move(-1000, -1000);
+    mouse.restorePosition(end[0] + 3, end[1] + 3);
     mouse.up();
 
     expect(h.elements.length).toBe(3);
@@ -507,7 +518,8 @@ describe("regression tests", () => {
 
     mouse.reset();
     mouse.down();
-    mouse.restorePosition(...end);
+    mouse.move(-1000, -1000);
+    mouse.restorePosition(end[0] + 3, end[1] + 3);
     mouse.up();
 
     for (const element of h.elements) {
@@ -524,7 +536,8 @@ describe("regression tests", () => {
 
     mouse.moveTo(-10, -10); // the NW resizing handle is at [0, 0], so moving further
     mouse.down();
-    mouse.restorePosition(...end);
+    mouse.move(-1000, -1000);
+    mouse.restorePosition(end[0] + 3, end[1] + 3);
     mouse.up();
 
     Keyboard.withModifierKeys({ ctrl: true, shift: true }, () => {
@@ -644,9 +657,9 @@ describe("regression tests", () => {
 
   it("updates fontSize & fontFamily appState", () => {
     UI.clickTool("text");
-    expect(h.state.currentItemFontFamily).toEqual(FONT_FAMILY.Virgil);
+    expect(h.state.currentItemFontFamily).toEqual(FONT_FAMILY.Excalifont);
     fireEvent.click(screen.getByTitle(/code/i));
-    expect(h.state.currentItemFontFamily).toEqual(FONT_FAMILY.Cascadia);
+    expect(h.state.currentItemFontFamily).toEqual(FONT_FAMILY["Comic Shanns"]);
   });
 
   it("deselects selected element, on pointer up, when click hits element bounding box but doesn't hit the element", () => {
@@ -757,7 +770,7 @@ describe("regression tests", () => {
         width: 500,
         height: 500,
       });
-      h.elements = [rect1, rect2];
+      API.setElements([rect1, rect2]);
 
       mouse.select(rect1);
 
@@ -793,7 +806,7 @@ describe("regression tests", () => {
         width: 500,
         height: 500,
       });
-      h.elements = [rect1, rect2];
+      API.setElements([rect1, rect2]);
 
       mouse.select(rect1);
 
@@ -1181,3 +1194,7 @@ it(
     expect(API.getSelectedElements().length).toBe(1);
   },
 );
+
+//
+// DEPRECATED: DO NOT ADD TESTS HERE
+//

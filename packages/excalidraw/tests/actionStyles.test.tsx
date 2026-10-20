@@ -1,5 +1,16 @@
+import React from "react";
+
+import {
+  CODES,
+  COLOR_PALETTE,
+  ROUNDNESS,
+  STROKE_WIDTH,
+} from "@excalidraw/common";
+
+import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+
+import { copiedStyles } from "../actions/actionStyles";
 import { Excalidraw } from "../index";
-import { CODES } from "../keys";
 import { API } from "../tests/helpers/api";
 import { Keyboard, Pointer, UI } from "../tests/helpers/ui";
 import {
@@ -9,7 +20,6 @@ import {
   screen,
   togglePopover,
 } from "../tests/test-utils";
-import { copiedStyles } from "../actions/actionStyles";
 
 const { h } = window;
 
@@ -49,13 +59,13 @@ describe("actionStyles", () => {
     // Roughness
     fireEvent.click(screen.getByTitle("Cartoonist"));
     // Opacity
-    fireEvent.change(screen.getByLabelText("Opacity"), {
+    fireEvent.change(screen.getByTestId("opacity"), {
       target: { value: "60" },
     });
 
     mouse.reset();
 
-    API.setSelectedElements([h.elements[1]]);
+    API.setSelectedElements([h.elements[1]] as NonDeletedExcalidrawElement[]);
 
     Keyboard.withModifierKeys({ ctrl: true, alt: true }, () => {
       Keyboard.codeDown(CODES.C);
@@ -65,7 +75,7 @@ describe("actionStyles", () => {
 
     mouse.reset();
     // Paste styles to first rectangle
-    API.setSelectedElements([h.elements[0]]);
+    API.setSelectedElements([h.elements[0]] as NonDeletedExcalidrawElement[]);
     Keyboard.withModifierKeys({ ctrl: true, alt: true }, () => {
       Keyboard.codeDown(CODES.V);
     });
@@ -75,9 +85,98 @@ describe("actionStyles", () => {
     expect(firstRect.strokeColor).toBe("#e03131");
     expect(firstRect.backgroundColor).toBe("#a5d8ff");
     expect(firstRect.fillStyle).toBe("cross-hatch");
-    expect(firstRect.strokeWidth).toBe(2); // Bold: 2
+    expect(firstRect.strokeWidth).toBe(STROKE_WIDTH.bold);
     expect(firstRect.strokeStyle).toBe("dotted");
     expect(firstRect.roughness).toBe(2); // Cartoonist: 2
     expect(firstRect.opacity).toBe(60);
+  });
+
+  it("should show and apply roughness for sticky notes", async () => {
+    const stickyNote = API.createElement({
+      type: "stickynote",
+      roughness: 0,
+    });
+
+    API.setElements([stickyNote]);
+    API.setSelectedElements([stickyNote]);
+
+    fireEvent.click(screen.getByTitle("Cartoonist"));
+
+    expect(API.getSelectedElement().roughness).toBe(2);
+  });
+
+  it("should show and apply roundness for sticky notes", async () => {
+    const stickyNote = API.createElement({
+      type: "stickynote",
+      roundness: null,
+    });
+
+    API.setElements([stickyNote]);
+    API.setSelectedElements([stickyNote]);
+
+    fireEvent.click(screen.getByTitle("Round"));
+
+    expect(API.getSelectedElement().roundness).toEqual({
+      type: ROUNDNESS.PROPORTIONAL_RADIUS,
+    });
+  });
+
+  it("should hide transparent stroke color for sticky notes", async () => {
+    UI.clickTool("stickynote");
+
+    togglePopover("Text color");
+
+    // hidden via `excludedColors` (same mechanism as bucket fill): the swatch
+    // is gone, but an invisible placeholder keeps the grid so the remaining
+    // colors stay on their usual positions and hotkeys
+    expect(screen.queryByTestId("color-transparent")).toBeNull();
+    expect(
+      document.querySelector(
+        '.color-picker-content--default [aria-hidden="true"]',
+      ),
+    ).not.toBeNull();
+    expect(screen.queryByTestId("color-black")).not.toBeNull();
+  });
+
+  it("keeps the transparent hotkey dead and the others intact for sticky notes", async () => {
+    UI.clickTool("stickynote");
+
+    togglePopover("Text color");
+
+    const picker = document.querySelector(".color-picker-content")!;
+    const before = h.state.currentItemStickynoteStrokeColor;
+
+    // `q` maps to the hidden transparent swatch (and to the global tool-lock
+    // shortcut) — inside the popup it must be inert, not leaked
+    fireEvent.keyDown(picker, { key: "q" });
+    expect(h.state.currentItemStickynoteStrokeColor).toBe(before);
+    expect(h.state.activeTool.locked).toBe(false);
+
+    // the remaining colors keep their usual keys (w = white)
+    fireEvent.keyDown(picker, { key: "w" });
+    expect(h.state.currentItemStickynoteStrokeColor).toBe(COLOR_PALETTE.white);
+  });
+
+  it("should track sticky note stroke color separately", async () => {
+    API.setAppState({
+      currentItemStrokeColor: COLOR_PALETTE.red[4],
+      currentItemStickynoteStrokeColor: COLOR_PALETTE.black,
+    });
+    const stickyNote = API.createElement({
+      type: "stickynote",
+      strokeColor: COLOR_PALETTE.black,
+    });
+
+    API.setElements([stickyNote]);
+    API.setSelectedElements([stickyNote]);
+
+    togglePopover("Text color");
+    UI.clickOnTestId("color-blue");
+
+    expect(API.getSelectedElement().strokeColor).toBe(COLOR_PALETTE.blue[4]);
+    expect(h.state.currentItemStickynoteStrokeColor).toBe(
+      COLOR_PALETTE.blue[4],
+    );
+    expect(h.state.currentItemStrokeColor).toBe(COLOR_PALETTE.red[4]);
   });
 });

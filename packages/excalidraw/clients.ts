@@ -2,16 +2,17 @@ import {
   COLOR_CHARCOAL_BLACK,
   COLOR_VOICE_CALL,
   COLOR_WHITE,
-  THEME,
-} from "./constants";
+  UserIdleState,
+} from "@excalidraw/common";
+
 import { roundRect } from "./renderer/roundRect";
+
 import type { InteractiveCanvasRenderConfig } from "./scene/types";
 import type {
   Collaborator,
   InteractiveCanvasAppState,
   SocketId,
 } from "./types";
-import { UserIdleState } from "./types";
 
 function hashToInteger(id: string) {
   let hash = 0;
@@ -120,9 +121,7 @@ export const renderRemoteCursors = ({
       context.closePath();
     }
 
-    // TODO remove the dark theme color after we stop inverting canvas colors
-    const IS_SPEAKING_COLOR =
-      appState.theme === THEME.DARK ? "#2f6330" : COLOR_VOICE_CALL;
+    const IS_SPEAKING_COLOR = COLOR_VOICE_CALL;
 
     const isSpeaking = collaborator?.isSpeaking;
 

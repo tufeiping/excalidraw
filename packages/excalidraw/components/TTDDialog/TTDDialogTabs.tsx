@@ -1,16 +1,16 @@
-import * as RadixTabs from "@radix-ui/react-tabs";
-import type { ReactNode } from "react";
+import { Tabs as RadixTabs } from "radix-ui";
 import { useRef } from "react";
+
+import { isMemberOf } from "@excalidraw/common";
+
 import { useExcalidrawSetAppState } from "../App";
-import { isMemberOf } from "../../utils";
+
+import type { ReactNode } from "react";
 
 const TTDDialogTabs = (
   props: {
     children: ReactNode;
-  } & (
-    | { dialog: "ttd"; tab: "text-to-diagram" | "mermaid" }
-    | { dialog: "settings"; tab: "text-to-diagram" | "diagram-to-code" }
-  ),
+  } & { dialog: "ttd"; tab: "text-to-diagram" | "mermaid" },
 ) => {
   const setAppState = useExcalidrawSetAppState();
 
@@ -39,13 +39,6 @@ const TTDDialogTabs = (
           }
         }
         if (
-          props.dialog === "settings" &&
-          isMemberOf(["text-to-diagram", "diagram-to-code"], tab)
-        ) {
-          setAppState({
-            openDialog: { name: props.dialog, tab, source: "settings" },
-          });
-        } else if (
           props.dialog === "ttd" &&
           isMemberOf(["text-to-diagram", "mermaid"], tab)
         ) {

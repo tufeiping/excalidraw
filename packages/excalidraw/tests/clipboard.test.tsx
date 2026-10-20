@@ -1,26 +1,44 @@
+import React from "react";
 import { vi } from "vitest";
-import ReactDOM from "react-dom";
-import { render, waitFor, GlobalTestState } from "./test-utils";
-import { Pointer, Keyboard } from "./helpers/ui";
-import { Excalidraw } from "../index";
-import { KEYS } from "../keys";
+
+import { getLineHeightInPx } from "@excalidraw/element";
+
 import {
-  getDefaultLineHeight,
-  getLineHeightInPx,
-} from "../element/textElement";
-import { getElementBounds } from "../element";
-import type { NormalizedZoomValue } from "../types";
-import { API } from "./helpers/api";
+  KEYS,
+  TEXT_VIEWPORT_PADDING,
+  TEXT_MAX_WRAP_WIDTH,
+  arrayToMap,
+  getLineHeight,
+} from "@excalidraw/common";
+
+import { getElementBounds } from "@excalidraw/element";
+
+import type { ExcalidrawTextElement } from "@excalidraw/element/types";
+
 import { createPasteEvent, serializeAsClipboardJSON } from "../clipboard";
-import { arrayToMap } from "../utils";
+
+import { Excalidraw } from "../index";
+
+import { API } from "./helpers/api";
 import { mockMermaidToExcalidraw } from "./helpers/mocks";
+import { Pointer, Keyboard } from "./helpers/ui";
+import {
+  render,
+  waitFor,
+  GlobalTestState,
+  unmountComponent,
+} from "./test-utils";
+
+import type { NormalizedZoomValue } from "../types";
 
 const { h } = window;
 
 const mouse = new Pointer("mouse");
 
-vi.mock("../keys.ts", async (importOriginal) => {
-  const module: any = await importOriginal();
+vi.mock("@excalidraw/common", async (importOriginal) => {
+  const module = await importOriginal<typeof import("@excalidraw/common")>();
+  const { mockThrottleRAF } = await import("./helpers/mocks");
+
   return {
     __esmodule: true,
     ...module,
@@ -29,6 +47,7 @@ vi.mock("../keys.ts", async (importOriginal) => {
       ...module.KEYS,
       CTRL_OR_CMD: "ctrlKey",
     },
+    throttleRAF: mockThrottleRAF,
   };
 });
 
@@ -64,7 +83,7 @@ const sleep = (ms: number) => {
 };
 
 beforeEach(async () => {
-  ReactDOM.unmountComponentAtNode(document.getElementById("root")!);
+  unmountComponent();
 
   localStorage.clear();
 
@@ -146,7 +165,7 @@ describe("paste text as single lines", () => {
     const lineHeightPx =
       getLineHeightInPx(
         h.app.state.currentItemFontSize,
-        getDefaultLineHeight(h.state.currentItemFontFamily),
+        getLineHeight(h.state.currentItemFontFamily),
       ) +
       10 / h.app.state.zoom.value;
     mouse.moveTo(100, 100);
@@ -168,7 +187,7 @@ describe("paste text as single lines", () => {
     const lineHeightPx =
       getLineHeightInPx(
         h.app.state.currentItemFontSize,
-        getDefaultLineHeight(h.state.currentItemFontFamily),
+        getLineHeight(h.state.currentItemFontFamily),
       ) +
       10 / h.app.state.zoom.value;
     mouse.moveTo(100, 100);
@@ -191,6 +210,185 @@ describe("paste text as a single element", () => {
     await waitFor(() => {
       expect(h.elements.length).toEqual(1);
     });
+  });
+  it("should not make a pasted text wider than the view", async () => {
+    API.setAppState({
+      width: 1000,
+      zoom: { value: 8 as NormalizedZoomValue },
+    });
+    // the view at 800%, less some room at each side
+    const maxWidth = (1000 - 2 * TEXT_VIEWPORT_PADDING) / 8;
+
+    pasteWithCtrlCmdShiftV(
+      "Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams!",
+    );
+    await waitFor(() => {
+      expect(h.elements.length).toEqual(1);
+    });
+    const text = h.elements[0] as ExcalidrawTextElement;
+    expect(text.autoResize).toBe(false);
+    expect(text.width).toBeLessThanOrEqual(maxWidth);
+  });
+  it("should wrap a pasted text as a typed one: at TEXT_MAX_WRAP_WIDTH, clear of the full styles panel", async () => {
+    unmountComponent();
+    await render(
+      <Excalidraw
+        autoFocus={true}
+        handleKeyboardGlobally={true}
+        UIOptions={{ getFormFactor: () => "desktop" }}
+      />,
+    );
+    API.setAppState({ width: 1000 });
+    // nothing's selected: the panel shows only once the text is in
+    expect(
+      document.querySelector('[data-viewport-ui-name="stylesPanel"]'),
+    ).toBe(null);
+
+    pasteWithCtrlCmdShiftV(
+      "Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams! Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams!",
+    );
+    await waitFor(() => {
+      expect(h.elements.length).toEqual(1);
+    });
+    const text = h.elements[0] as ExcalidrawTextElement;
+    expect(text.autoResize).toBe(false);
+    // not at half the view…
+    expect(text.width).toBeGreaterThan(1000 / 2);
+    // …but the view less the panel's room (216, approximately, while never
+    // shown) and some room at each side
+    expect(text.width).toBeLessThanOrEqual(
+      Math.min(1000 - 216 - 2 * TEXT_VIEWPORT_PADDING, TEXT_MAX_WRAP_WIDTH),
+    );
+  });
+  describe("next to the stats panel (desktop)", () => {
+    const { getBoundingClientRect } = HTMLElement.prototype;
+    /** the stats panel's bottom: it grows to show a selection's properties */
+    let getStatsBottom = () => 200;
+
+    beforeEach(async () => {
+      unmountComponent();
+      await render(
+        <Excalidraw
+          autoFocus={true}
+          handleKeyboardGlobally={true}
+          UIOptions={{ getFormFactor: () => "desktop" }}
+        />,
+      );
+      API.setAppState({
+        width: 1000,
+        height: 800,
+        stats: { ...h.state.stats, open: true },
+      });
+      // the styles panel up to 216px, the stats panel from 700px
+      getStatsBottom = () => 200;
+      HTMLElement.prototype.getBoundingClientRect = function (
+        this: HTMLElement,
+      ) {
+        switch (this.dataset.viewportUiName) {
+          case "stylesPanel":
+            return {
+              left: 16,
+              right: 216,
+              width: 200,
+              top: 0,
+              bottom: 400,
+            } as DOMRect;
+          case "stats":
+            return {
+              left: 700,
+              right: 904,
+              width: 204,
+              top: 0,
+              bottom: getStatsBottom(),
+            } as DOMRect;
+        }
+        return getBoundingClientRect.call(this);
+      };
+    });
+
+    afterEach(() => {
+      HTMLElement.prototype.getBoundingClientRect = getBoundingClientRect;
+    });
+
+    const pasteAt = async (y: number) => {
+      API.setSelectedElements([]);
+      h.app.viewport.lastPosition.x = 500;
+      h.app.viewport.lastPosition.y = y;
+      const count = h.elements.length;
+      pasteWithCtrlCmdShiftV(
+        "Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams! Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams!",
+      );
+      await waitFor(() => {
+        expect(h.elements.length).toEqual(count + 1);
+      });
+      return h.elements[count] as ExcalidrawTextElement;
+    };
+    const getRight = (text: ExcalidrawTextElement) =>
+      (text.x + text.width + h.state.scrollX) * h.state.zoom.value;
+    // the view less the styles panel's room, and some room at each side
+    const maxWidth = 1000 - 216 - 2 * TEXT_VIEWPORT_PADDING;
+    // and the stats panel's
+    const maxWidthBesideStats = maxWidth - (1000 - 700);
+
+    it("should keep a pasted text clear of the stats panel only where it lands beside it", async () => {
+      // below it, it's wrapped past it
+      let text = await pasteAt(600);
+      expect(text.width).toBeGreaterThan(maxWidthBesideStats);
+      expect(text.width).toBeLessThanOrEqual(maxWidth);
+
+      // beside it, it's wrapped, and moved, clear of it
+      text = await pasteAt(100);
+      expect(text.width).toBeLessThanOrEqual(maxWidthBesideStats);
+      expect(getRight(text)).toBeLessThanOrEqual(
+        700 - TEXT_VIEWPORT_PADDING + 0.01,
+      );
+    });
+
+    it("should keep a pasted text clear of the stats panel grown to show it, as one step", async () => {
+      getStatsBottom = () =>
+        Object.keys(h.state.selectedElementIds).length ? 500 : 200;
+      const undoSteps = h.history.undoStack.length;
+
+      // below it as it is before the paste, beside it as it is after
+      const text = await pasteAt(350);
+      expect(text.width).toBeLessThanOrEqual(maxWidthBesideStats);
+      expect(getRight(text)).toBeLessThanOrEqual(
+        700 - TEXT_VIEWPORT_PADDING + 0.01,
+      );
+      expect(h.history.undoStack.length).toBe(undoSteps + 1);
+    });
+  });
+  it("should move a pasted text that wraps into view, not the view", async () => {
+    API.setAppState({ width: 1000, height: 800 });
+    const { scrollX, scrollY } = h.state;
+    // pasted at the pointer, near the bottom-right corner
+    h.app.viewport.lastPosition.x = 950;
+    h.app.viewport.lastPosition.y = 780;
+
+    pasteWithCtrlCmdShiftV(
+      "Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams! Excalidraw is an opensource virtual collaborative whiteboard for sketching hand-drawn like diagrams!",
+    );
+    await waitFor(() => {
+      expect(h.elements.length).toEqual(1);
+    });
+    const text = h.elements[0] as ExcalidrawTextElement;
+    expect(text.autoResize).toBe(false);
+    expect(h.state.scrollX).toBe(scrollX);
+    expect(h.state.scrollY).toBe(scrollY);
+    // all of it within the view, with room at each side
+    const zoom = h.state.zoom.value;
+    expect((text.x + scrollX) * zoom).toBeGreaterThanOrEqual(
+      TEXT_VIEWPORT_PADDING - 0.01,
+    );
+    expect((text.x + text.width + scrollX) * zoom).toBeLessThanOrEqual(
+      1000 - TEXT_VIEWPORT_PADDING + 0.01,
+    );
+    expect((text.y + scrollY) * zoom).toBeGreaterThanOrEqual(
+      TEXT_VIEWPORT_PADDING - 0.01,
+    );
+    expect((text.y + text.height + scrollY) * zoom).toBeLessThanOrEqual(
+      800 - TEXT_VIEWPORT_PADDING + 0.01,
+    );
   });
   it("should not create any element when only new lines in clipboard", async () => {
     const text = "\n\n\n\n";
@@ -281,7 +479,7 @@ describe("pasting & frames", () => {
     });
     const rect = API.createElement({ type: "rectangle" });
 
-    h.elements = [frame];
+    API.setElements([frame]);
 
     const clipboardJSON = await serializeAsClipboardJSON({
       elements: [rect],
@@ -294,8 +492,123 @@ describe("pasting & frames", () => {
 
     await waitFor(() => {
       expect(h.elements.length).toBe(2);
+      expect(h.elements[0].type).toBe(rect.type);
+      expect(h.elements[0].frameId).toBe(frame.id);
+      expect(h.elements[1].id).toBe(frame.id);
+      expect(h.elements[0].index! < frame.index!).toBe(true);
+    });
+  });
+
+  it("should layer pasted elements above the highest frame child", async () => {
+    const frame = API.createElement({
+      type: "frame",
+      width: 100,
+      height: 100,
+      x: 0,
+      y: 0,
+    });
+    const frameChild = API.createElement({
+      id: "frameChild",
+      type: "rectangle",
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 20,
+      frameId: frame.id,
+    });
+    const rect = API.createElement({ type: "rectangle" });
+
+    API.setElements([frameChild, frame]);
+
+    const clipboardJSON = await serializeAsClipboardJSON({
+      elements: [rect],
+      files: null,
+    });
+
+    mouse.moveTo(50, 50);
+
+    pasteWithCtrlCmdV(clipboardJSON);
+
+    await waitFor(() => {
+      expect(h.elements.length).toBe(3);
       expect(h.elements[1].type).toBe(rect.type);
       expect(h.elements[1].frameId).toBe(frame.id);
+      expect(h.elements.map((element) => element.id)).toEqual([
+        frameChild.id,
+        h.elements[1].id,
+        frame.id,
+      ]);
+      expect(h.elements[1].index! > frameChild.index!).toBe(true);
+      expect(h.elements[1].index! < frame.index!).toBe(true);
+    });
+  });
+
+  it("should preserve denormalized pasted frame child order", async () => {
+    const frame = API.createElement({
+      type: "frame",
+      width: 100,
+      height: 100,
+      x: 0,
+      y: 0,
+    });
+    const frameChild = API.createElement({
+      type: "rectangle",
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 20,
+      frameId: frame.id,
+    });
+
+    const clipboardJSON = await serializeAsClipboardJSON({
+      elements: [frame, frameChild],
+      files: null,
+    });
+
+    mouse.moveTo(200, 200);
+
+    pasteWithCtrlCmdV(clipboardJSON);
+
+    await waitFor(() => {
+      expect(h.elements.length).toBe(2);
+      expect(h.elements[0].type).toBe(frame.type);
+      expect(h.elements[1].type).toBe(frameChild.type);
+      expect(h.elements[1].frameId).toBe(h.elements[0].id);
+    });
+  });
+
+  it("should remove element from frame when pasted outside", async () => {
+    const frame = API.createElement({
+      type: "frame",
+      width: 100,
+      height: 100,
+      x: 0,
+      y: 0,
+    });
+    const rect = API.createElement({
+      type: "rectangle",
+      frameId: frame.id,
+      x: 10,
+      y: 10,
+      width: 50,
+      height: 50,
+    });
+
+    API.setElements([frame]);
+
+    const clipboardJSON = await serializeAsClipboardJSON({
+      elements: [rect],
+      files: null,
+    });
+
+    mouse.moveTo(150, 150);
+
+    pasteWithCtrlCmdV(clipboardJSON);
+
+    await waitFor(() => {
+      expect(h.elements.length).toBe(2);
+      expect(h.elements[1].type).toBe(rect.type);
+      expect(h.elements[1].frameId).toBe(null);
     });
   });
 
@@ -320,7 +633,7 @@ describe("pasting & frames", () => {
       y: 100,
     });
 
-    h.elements = [frame];
+    API.setElements([frame]);
 
     const clipboardJSON = await serializeAsClipboardJSON({
       elements: [rect, rect2],
@@ -333,8 +646,9 @@ describe("pasting & frames", () => {
 
     await waitFor(() => {
       expect(h.elements.length).toBe(3);
-      expect(h.elements[1].type).toBe(rect.type);
-      expect(h.elements[1].frameId).toBe(frame.id);
+      expect(h.elements[0].type).toBe(rect.type);
+      expect(h.elements[0].frameId).toBe(frame.id);
+      expect(h.elements[1].id).toBe(frame.id);
       expect(h.elements[2].type).toBe(rect2.type);
       expect(h.elements[2].frameId).toBe(null);
     });
@@ -363,7 +677,7 @@ describe("pasting & frames", () => {
       groupIds: ["g1"],
     });
 
-    h.elements = [frame];
+    API.setElements([frame]);
 
     const clipboardJSON = await serializeAsClipboardJSON({
       elements: [rect, rect2],
@@ -376,10 +690,11 @@ describe("pasting & frames", () => {
 
     await waitFor(() => {
       expect(h.elements.length).toBe(3);
-      expect(h.elements[1].type).toBe(rect.type);
+      expect(h.elements[0].type).toBe(rect.type);
+      expect(h.elements[0].frameId).toBe(frame.id);
+      expect(h.elements[1].type).toBe(rect2.type);
       expect(h.elements[1].frameId).toBe(frame.id);
-      expect(h.elements[2].type).toBe(rect2.type);
-      expect(h.elements[2].frameId).toBe(frame.id);
+      expect(h.elements[2].id).toBe(frame.id);
     });
   });
 
@@ -414,7 +729,7 @@ describe("pasting & frames", () => {
       frameId: frame2.id,
     });
 
-    h.elements = [frame];
+    API.setElements([frame]);
 
     const clipboardJSON = await serializeAsClipboardJSON({
       elements: [rect, rect2, frame2],
@@ -427,8 +742,9 @@ describe("pasting & frames", () => {
 
     await waitFor(() => {
       expect(h.elements.length).toBe(4);
-      expect(h.elements[1].type).toBe(rect.type);
-      expect(h.elements[1].frameId).toBe(frame.id);
+      expect(h.elements[0].type).toBe(rect.type);
+      expect(h.elements[0].frameId).toBe(frame.id);
+      expect(h.elements[1].id).toBe(frame.id);
       expect(h.elements[2].type).toBe(rect2.type);
       expect(h.elements[2].frameId).toBe(h.elements[3].id);
       expect(h.elements[3].type).toBe(frame2.type);
@@ -513,6 +829,98 @@ describe("clipboard - pasting mermaid definition", () => {
           expect.objectContaining({ type: "text", text: "A" }),
         ]),
       );
+    });
+  });
+});
+
+describe("copy and cut events", () => {
+  const dispatchClipboardEvent = (type: "copy" | "cut") => {
+    const clipboardData = new DataTransfer();
+    document.dispatchEvent(
+      Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+        clipboardData,
+      }),
+    );
+    return clipboardData;
+  };
+
+  it("should copy the selection on a copy event, and cut it on a cut event", async () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+
+    const copied = dispatchClipboardEvent("copy");
+    await waitFor(() => {
+      expect(JSON.parse(copied.getData("text/plain")).elements).toEqual([
+        expect.objectContaining({ id: rectangle.id }),
+      ]);
+    });
+    expect(h.elements[0].isDeleted).toBe(false);
+
+    const cut = dispatchClipboardEvent("cut");
+    await waitFor(() => {
+      expect(h.elements[0].isDeleted).toBe(true);
+    });
+    expect(JSON.parse(cut.getData("text/plain")).elements).toEqual([
+      expect.objectContaining({ id: rectangle.id }),
+    ]);
+  });
+});
+
+describe("paste routing", () => {
+  it("should leave a paste to the host when its onPaste returns false", async () => {
+    unmountComponent();
+    const onPaste = vi.fn(() => false);
+    await render(
+      <Excalidraw
+        autoFocus={true}
+        handleKeyboardGlobally={true}
+        onPaste={onPaste}
+      />,
+    );
+
+    pasteWithCtrlCmdV("hello");
+    await waitFor(() => {
+      expect(onPaste).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "hello" }),
+        expect.anything(),
+      );
+    });
+    await sleep(50);
+    expect(h.elements.length).toBe(0);
+  });
+
+  it("should open the charts dialog for a pasted spreadsheet", async () => {
+    pasteWithCtrlCmdV("time\tvalue\n1\t10\n2\t20\n3\t30");
+    await waitFor(() => {
+      expect(h.state.openDialog?.name).toBe("charts");
+    });
+    expect(h.elements.length).toBe(0);
+  });
+
+  it("should paste the text of mixed content when images can't be inserted", async () => {
+    unmountComponent();
+    await render(
+      <Excalidraw
+        autoFocus={true}
+        handleKeyboardGlobally={true}
+        UIOptions={{ tools: { image: false } }}
+      />,
+    );
+
+    document.dispatchEvent(
+      createPasteEvent({
+        types: {
+          "text/html":
+            '<p>hello</p><img src="https://example.com/a.png" /><p>world</p>',
+        },
+      }),
+    );
+    await waitFor(() => {
+      expect(h.elements.map((element) => (element as any).text)).toEqual([
+        "hello",
+        "world",
+      ]);
     });
   });
 });

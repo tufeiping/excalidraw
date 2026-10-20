@@ -1,48 +1,61 @@
+import clsx from "clsx";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import { invariant } from "@excalidraw/common";
+
 import { getClientColor } from "../clients";
 import { Avatar } from "../components/Avatar";
-import type { GoToCollaboratorComponentProps } from "../components/UserList";
 import {
   eyeIcon,
   microphoneIcon,
   microphoneMutedIcon,
 } from "../components/icons";
 import { t } from "../i18n";
-import { StoreAction } from "../store";
-import type { Collaborator } from "../types";
-import { register } from "./register";
-import clsx from "clsx";
 
-export const actionGoToCollaborator = register({
+import { register } from "./register";
+
+import type { GoToCollaboratorComponentProps } from "../components/UserList";
+import type { Collaborator } from "../types";
+
+export const actionGoToCollaborator = register<Collaborator>({
   name: "goToCollaborator",
   label: "Go to a collaborator",
   viewMode: true,
   trackEvent: { category: "collab" },
-  perform: (_elements, appState, collaborator: Collaborator) => {
+  perform: (_elements, appState, collaborator, app) => {
+    invariant(
+      collaborator,
+      "actionGoToCollaborator: collaborator should be defined when actionGoToCollaborator is called",
+    );
+
     if (
       !collaborator.socketId ||
-      appState.userToFollow?.socketId === collaborator.socketId ||
+      app.props.userToFollow?.socketId === collaborator.socketId ||
       collaborator.isCurrentUser
     ) {
+      app.requestUnfollow();
       return {
-        appState: {
-          ...appState,
-          userToFollow: null,
-        },
-        storeAction: StoreAction.NONE,
+        appState,
+        captureUpdate: CaptureUpdateAction.EVENTUALLY,
       };
     }
+
+    app.emitUserFollowIntent({
+      userToFollow: {
+        socketId: collaborator.socketId,
+        username: collaborator.username || "",
+      },
+      action: "FOLLOW",
+    });
 
     return {
       appState: {
         ...appState,
-        userToFollow: {
-          socketId: collaborator.socketId,
-          username: collaborator.username || "",
-        },
         // Close mobile menu
         openMenu: appState.openMenu === "canvas" ? null : appState.openMenu,
       },
-      storeAction: StoreAction.NONE,
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
   PanelComponent: ({ updateData, data, appState }) => {
@@ -85,7 +98,11 @@ export const actionGoToCollaborator = register({
       <div
         className={`dropdown-menu-item dropdown-menu-item-base UserList__collaborator ${statusClassNames}`}
         style={{ [`--avatar-size` as any]: "1.5rem" }}
-        onClick={() => updateData<Collaborator>(collaborator)}
+        onClick={
+          collaborator.isCurrentUser
+            ? undefined
+            : () => updateData<Collaborator>(collaborator)
+        }
       >
         <Avatar
           color={background}
@@ -106,6 +123,7 @@ export const actionGoToCollaborator = register({
               {eyeIcon}
             </div>
           )}
+          {collaborator.isCurrentUser && ` (${t("labels.you")})`}
           {statusIconJSX}
         </div>
       </div>

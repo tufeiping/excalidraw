@@ -1,19 +1,25 @@
+import { eyeIcon, MagicIcon } from "@excalidraw/excalidraw/components/icons";
+import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
-// import {
-//   loginIcon,
-//   ExcalLogo,
-// } from "../../packages/excalidraw/components/icons";
-import type { Theme } from "../../packages/excalidraw/element/types";
-import { MainMenu } from "../../packages/excalidraw/index";
-// import { isExcalidrawPlusSignedUser } from "../app_constants";
+
+import { isDevEnv } from "@excalidraw/common";
+
+import type { Theme } from "@excalidraw/element/types";
+
 import { LanguageList } from "../app-language/LanguageList";
+
+import { saveDebugState } from "./DebugCanvas";
 
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
   isCollaborating: boolean;
   isCollabEnabled: boolean;
   theme: Theme | "system";
-  setTheme: (theme: Theme | "system") => void;
+  refresh: () => void;
+  /** opens the AI (DeepSeek) settings dialog */
+  onOpenAISettings?: () => void;
+  /** opens the canvas AI agent panel */
+  onOpenAgent?: () => void;
 }> = React.memo((props) => {
   return (
     <MainMenu>
@@ -28,9 +34,11 @@ export const AppMainMenu: React.FC<{
         />
       )}
       <MainMenu.DefaultItems.CommandPalette className="highlighted" />
+      <MainMenu.DefaultItems.SearchMenu />
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
       <MainMenu.Separator />
+      {/* FlyLaTeX: self-hosted deployment, upstream Excalidraw+ promo links removed */}
       {/* <MainMenu.ItemLink
         icon={ExcalLogo}
         href={`${
@@ -48,14 +56,38 @@ export const AppMainMenu: React.FC<{
         }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
         className="highlighted"
       >
-        {isExcalidrawPlusSignedUser ? "Sign in" : "Sign up"}
+        {isExcalidrawPlusSignedUser ? t("labels.signIn") : t("labels.signUp")}
       </MainMenu.ItemLink> */}
+      {isDevEnv() && (
+        <MainMenu.Item
+          icon={eyeIcon}
+          onSelect={() => {
+            if (window.visualDebug) {
+              delete window.visualDebug;
+              saveDebugState({ enabled: false });
+            } else {
+              window.visualDebug = { data: [] };
+              saveDebugState({ enabled: true });
+            }
+            props?.refresh();
+          }}
+        >
+          Visual Debug
+        </MainMenu.Item>
+      )}
+      {props.onOpenAgent && (
+        <MainMenu.Item onSelect={props.onOpenAgent} icon={MagicIcon}>
+          AI 助手
+        </MainMenu.Item>
+      )}
+      {props.onOpenAISettings && (
+        <MainMenu.Item onSelect={props.onOpenAISettings} icon={MagicIcon}>
+          AI 设置
+        </MainMenu.Item>
+      )}
       <MainMenu.Separator />
-      <MainMenu.DefaultItems.ToggleTheme
-        allowSystemTheme
-        theme={props.theme}
-        onSelect={props.setTheme}
-      />
+      <MainMenu.DefaultItems.Preferences />
+      <MainMenu.DefaultItems.ToggleTheme allowSystemTheme theme={props.theme} />
       <MainMenu.ItemCustom>
         <LanguageList style={{ width: "100%" }} />
       </MainMenu.ItemCustom>
