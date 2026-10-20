@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import { AsyncChannel } from "./channel";
 import { runAgent } from "./loop";
 import { ToolRegistry } from "./registry";
@@ -223,7 +225,8 @@ describe("agent loop", () => {
 
     expect(
       events.some(
-        (event) => event.type === "notice" && /最大步数/.test(event.text),
+        (event) =>
+          event.type === "notice" && event.text === t("agent.noticeIterations"),
       ),
     ).toBe(true);
   });

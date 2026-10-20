@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import { AgentRequestError, chatCompletion } from "./provider";
 
 import type { ChatMessage } from "./types";
@@ -137,7 +139,7 @@ describe("chatCompletion", () => {
     global.fetch = vi.fn() as unknown as typeof fetch;
 
     await expect(chatCompletion({ messages: history })).rejects.toThrow(
-      /未配置 API 密钥/,
+      t("agent.errorMissingKey"),
     );
     expect(global.fetch).not.toHaveBeenCalled();
   });
@@ -150,7 +152,7 @@ describe("chatCompletion", () => {
     ) as unknown as typeof fetch;
 
     await expect(chatCompletion({ messages: history })).rejects.toThrow(
-      /API 密钥无效或无权限/,
+      t("agent.errorUnauthorized"),
     );
   });
 
@@ -163,7 +165,7 @@ describe("chatCompletion", () => {
 
     await expect(
       chatCompletion({ messages: history, retries: 0 }),
-    ).rejects.toThrow(/无法连接 AI 服务/);
+    ).rejects.toThrow(t("agent.errorConnect", { detail: "" }).slice(0, 12));
   });
 
   it("does not retry after tokens were already streamed", async () => {

@@ -3,11 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import {
-  clearChat,
   createChat,
+  deleteChat as deleteStoredChat,
+  listChats,
   loadChat,
   nextItemId,
   saveChat,
+  setActiveChatId,
 } from "./chatStore";
 import { runAgent } from "./loop";
 import { ToolRegistry } from "./registry";
@@ -16,7 +18,7 @@ import { canvasTools } from "./tools";
 import { loadSnapshot, syncSceneSnapshot } from "./sceneStore";
 import { SYSTEM_PROMPT } from "./systemPrompt";
 
-import type { ChatItem } from "./chatStore";
+import type { ChatItem, ChatSummary, StoredChat } from "./chatStore";
 import type {
   AgentSession,
   ChatMessage,
@@ -31,9 +33,16 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
   const [items, setItems] = useState<ChatItem[]>(initial.items);
   const [status, setStatus] = useState<AgentStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [chats, setChats] = useState<ChatSummary[]>(() => listChats());
+  const [activeChatId, setActiveChatIdState] = useState<string>(initial.id);
 
   const historyRef = useRef<ChatMessage[]>(initial.messages);
-  const chatRef = useRef({ id: initial.id, createdAt: initial.createdAt });
+  const chatRef = useRef({
+    id: initial.id,
+    createdAt: initial.createdAt,
+    title: initial.title,
+  });
+  const activeIdRef = useRef(initial.id);
   const itemsRef = useRef<ChatItem[]>(initial.items);
   const assistantRef = useRef<{
     id: string;
@@ -66,7 +75,21 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
   );
 
   const persist = useCallback((nextItems: ChatItem[]) => {
-    saveChat(chatRef.current, historyRef.current, nextItems);
+    // never litter the history list with conversations that were never used
+    if (!nextItems.length && !historyRef.current.length) {
+      return;
+    }
+    const saved = saveChat(chatRef.current, historyRef.current, nextItems);
+    chatRef.current = {
+      id: saved.id,
+      createdAt: saved.createdAt,
+      title: saved.title,
+    };
+    setActiveChatId(saved.id);
+  }, []);
+
+  const refreshChats = useCallback(() => {
+    setChats(listChats());
   }, []);
 
   const clearPersistTimer = useCallback(() => {
@@ -94,6 +117,7 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
   const flushPersist = useCallback(() => {
     clearPersistTimer();
     persist(itemsRef.current);
+    setChats(listChats());
   }, [clearPersistTimer, persist]);
 
   const commitItems = useCallback(
@@ -282,20 +306,58 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     abortRef.current?.abort();
   }, []);
 
-  const reset = useCallback(() => {
+  /** swap the panel over to another (or a brand new) conversation */
+  const applyChat = useCallback((chat: StoredChat) => {
     abortRef.current?.abort();
     abortRef.current = null;
     assistantRef.current = null;
-    historyRef.current = [];
-    const fresh = createChat();
-    chatRef.current = { id: fresh.id, createdAt: fresh.createdAt };
-    itemsRef.current = [];
-    setItems([]);
+    historyRef.current = chat.messages;
+    chatRef.current = {
+      id: chat.id,
+      createdAt: chat.createdAt,
+      title: chat.title,
+    };
+    activeIdRef.current = chat.id;
+    itemsRef.current = chat.items;
+    setItems(chat.items);
+    setActiveChatIdState(chat.id);
+    setActiveChatId(chat.id);
     setError(null);
     setStatus("idle");
-    clearPersistTimer();
-    clearChat();
-  }, [clearPersistTimer]);
+  }, []);
+
+  /** starts a fresh conversation; the current one stays in the history list */
+  const newChat = useCallback(() => {
+    flushPersist();
+    applyChat(createChat());
+    setChats(listChats());
+  }, [applyChat, flushPersist]);
+
+  const openChat = useCallback(
+    (id: string) => {
+      if (id === activeIdRef.current) {
+        return;
+      }
+      flushPersist();
+      applyChat(loadChat(id));
+      setChats(listChats());
+    },
+    [applyChat, flushPersist],
+  );
+
+  const removeChat = useCallback(
+    (id: string) => {
+      deleteStoredChat(id);
+      const remaining = listChats();
+      setChats(remaining);
+      if (id !== activeIdRef.current) {
+        return;
+      }
+      // the conversation on screen is gone: fall back to the newest one
+      applyChat(remaining.length ? loadChat(remaining[0].id) : createChat());
+    },
+    [applyChat],
+  );
 
   // don't lose the last tool steps if the tab is closed or reloaded
   useEffect(() => {
@@ -324,9 +386,14 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     items,
     status,
     error,
+    chats,
+    activeChatId,
     send,
     stop,
-    reset,
+    newChat,
+    openChat,
+    removeChat,
+    refreshChats,
     dismissError: () => setError(null),
   };
 };

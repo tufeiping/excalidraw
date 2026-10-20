@@ -1,6 +1,8 @@
 import { parseSSEStream } from "@excalidraw/excalidraw";
 import { RequestError } from "@excalidraw/excalidraw/errors";
 
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import type {
   LLMMessage,
   TTTDDialog,
@@ -123,10 +125,7 @@ export const streamTextToDiagram = async ({
 
   if (!apiKey) {
     return {
-      error: toRequestError(
-        "未配置 API 密钥，请先在「AI 设置」中填写（或由部署方通过运行时配置注入）",
-        401,
-      ),
+      error: toRequestError(t("agent.errorMissingKey"), 401),
     };
   }
 
@@ -156,10 +155,7 @@ export const streamTextToDiagram = async ({
       return { error: toRequestError("Request aborted", 499) };
     }
     return {
-      error: toRequestError(
-        error?.message || "AI 服务请求失败，请检查网络连接",
-        500,
-      ),
+      error: toRequestError(error?.message || t("agent.errorNetwork"), 500),
     };
   }
 
@@ -173,7 +169,7 @@ export const streamTextToDiagram = async ({
     }
     return {
       error: toRequestError(
-        message || `AI 服务返回错误 (${response.status})`,
+        message || t("agent.errorStatus", { status: response.status }),
         response.status,
       ),
     };

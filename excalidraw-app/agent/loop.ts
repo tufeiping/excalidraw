@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import { trimHistory } from "./chatStore";
 import { AsyncChannel } from "./channel";
 import { chatCompletion, AgentRequestError } from "./provider";
@@ -93,7 +95,7 @@ export async function* runAgent(
 
   while (iteration < maxIterations) {
     if (signal.aborted) {
-      yield { type: "notice", text: "已停止" };
+      yield { type: "notice", text: t("agent.noticeStopped") };
       return;
     }
     iteration++;
@@ -173,7 +175,7 @@ export async function* runAgent(
       index++;
       if (signal.aborted) {
         stopped = true;
-        yield { type: "notice", text: "已停止，未执行剩余操作" };
+        yield { type: "notice", text: t("agent.noticeStoppedPending") };
         padPendingCalls(response.toolCalls.slice(index - 1), "（用户已中止）");
         return;
       }
@@ -234,7 +236,7 @@ export async function* runAgent(
         stopped = true;
         yield {
           type: "notice",
-          text: `连续失败次数过多（${failedCalls} 次），已暂停。请补充信息后重试。`,
+          text: t("agent.noticeTooManyFailures", { count: failedCalls }),
         };
         padPendingCalls(
           response.toolCalls.slice(index),
@@ -248,7 +250,7 @@ export async function* runAgent(
   if (!stopped) {
     yield {
       type: "notice",
-      text: `已达到单轮最大步数（${maxIterations}）。可以让我「继续」，或直接说明下一步。`,
+      text: t("agent.noticeIterations"),
     };
   }
 }

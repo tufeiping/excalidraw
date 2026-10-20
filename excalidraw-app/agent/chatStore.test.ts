@@ -1,9 +1,12 @@
 import {
-  clearChat,
   createChat,
+  deleteChat,
+  getActiveChatId,
+  listChats,
   loadChat,
   nextItemId,
   saveChat,
+  setActiveChatId,
   trimHistory,
 } from "./chatStore";
 
@@ -96,10 +99,102 @@ describe("chat storage", () => {
       [{ id: "i1", kind: "user", text: "在吗" }],
     );
 
-    const loaded = loadChat();
+    const loaded = loadChat(chat.id);
     expect(loaded.id).toBe(chat.id);
     expect(loaded.messages).toEqual([{ role: "user", content: "在吗" }]);
     expect(loaded.items).toEqual([{ id: "i1", kind: "user", text: "在吗" }]);
+  });
+
+  it("derives a title from the first user message", () => {
+    const chat = createChat();
+    saveChat(
+      chat,
+      [{ role: "user", content: "把 三个 方框改成\n蓝色主题" }],
+      [{ id: "i1", kind: "user", text: "把 三个 方框改成蓝色主题" }],
+    );
+
+    expect(listChats()[0].title).toBe("把 三个 方框改成 蓝色主题");
+  });
+
+  it("keeps every conversation and lists the newest first", () => {
+    const first = createChat();
+    saveChat(
+      first,
+      [{ role: "user", content: "第一个" }],
+      [{ id: "i1", kind: "user", text: "第一个" }],
+    );
+    const second = createChat();
+    saveChat(
+      second,
+      [{ role: "user", content: "第二个" }],
+      [{ id: "i2", kind: "user", text: "第二个" }],
+    );
+
+    const chats = listChats();
+    expect(chats.map((chat) => chat.id)).toEqual([second.id, first.id]);
+    // starting a new conversation must not wipe the previous one
+    expect(loadChat(first.id).items).toHaveLength(1);
+    expect(loadChat(second.id).items).toHaveLength(1);
+  });
+
+  it("deletes a conversation from both the list and storage", () => {
+    const chat = createChat();
+    saveChat(
+      chat,
+      [{ role: "user", content: "再见" }],
+      [{ id: "i1", kind: "user", text: "再见" }],
+    );
+    setActiveChatId(chat.id);
+
+    deleteChat(chat.id);
+
+    expect(listChats()).toEqual([]);
+    expect(getActiveChatId()).toBeNull();
+    expect(loadChat(chat.id).items).toEqual([]);
+  });
+
+  it("reopens the active conversation on reload", () => {
+    const older = createChat();
+    saveChat(
+      older,
+      [{ role: "user", content: "旧的" }],
+      [{ id: "i1", kind: "user", text: "旧的" }],
+    );
+    const newer = createChat();
+    saveChat(
+      newer,
+      [{ role: "user", content: "新的" }],
+      [{ id: "i2", kind: "user", text: "新的" }],
+    );
+
+    setActiveChatId(older.id);
+    expect(loadChat().id).toBe(older.id);
+
+    setActiveChatId(newer.id);
+    expect(loadChat().id).toBe(newer.id);
+  });
+
+  it("imports the legacy single-conversation transcript", () => {
+    window.localStorage.setItem(
+      "excalidraw-agent-chat",
+      JSON.stringify({
+        version: 1,
+        id: "chat_old",
+        createdAt: 1,
+        updatedAt: 2,
+        messages: [{ role: "user", content: "迁移我" }],
+        items: [{ id: "o1", kind: "user", text: "迁移我" }],
+      }),
+    );
+
+    const chats = listChats();
+    expect(chats).toHaveLength(1);
+    expect(chats[0].title).toBe("迁移我");
+    expect(loadChat(chats[0].id).items).toEqual([
+      { id: "o1", kind: "user", text: "迁移我" },
+    ]);
+    // the legacy key is consumed once imported
+    expect(window.localStorage.getItem("excalidraw-agent-chat")).toBeNull();
   });
 
   it("truncates huge tool results before persisting", () => {
@@ -119,7 +214,7 @@ describe("chat storage", () => {
       ],
     );
 
-    const [item] = loadChat().items;
+    const [item] = loadChat(chat.id).items;
     expect(item.kind).toBe("tool");
     if (item.kind === "tool") {
       expect(item.content!.length).toBeLessThan(5000);
@@ -146,7 +241,7 @@ describe("chat storage", () => {
       ],
     );
 
-    const loaded = loadChat();
+    const loaded = loadChat(chat.id);
     // the tool step survives a reload, so the transcript doesn't collapse into
     // two adjacent assistant bubbles with nothing in between
     expect(loaded.items.map((item) => item.kind)).toEqual([
@@ -161,14 +256,111 @@ describe("chat storage", () => {
     }
   });
 
-  it("recovers from corrupted storage", () => {
-    window.localStorage.setItem("excalidraw-agent-chat", "{oops");
-    expect(loadChat().items).toEqual([]);
+  it("rebuilds tool steps a stale transcript never stored", () => {
+    // written by a build that only kept user/assistant bubbles
+    window.localStorage.setItem(
+      "excalidraw-agent-chat",
+      JSON.stringify({
+        version: 1,
+        id: "chat_stale",
+        createdAt: 1,
+        updatedAt: 2,
+        messages: [
+          { role: "user", content: "看一下画布" },
+          {
+            role: "assistant",
+            content: "我先看一下。",
+            toolCalls: [
+              { id: "call_1", name: "read_canvas", arguments: '{"page":1}' },
+            ],
+          },
+          {
+            role: "tool",
+            content: "L1: {type: rectangle}",
+            toolCallId: "call_1",
+            name: "read_canvas",
+          },
+          { role: "assistant", content: "画布上有一个矩形。" },
+        ],
+        items: [
+          { id: "s1", kind: "user", text: "看一下画布" },
+          { id: "s2", kind: "assistant", text: "我先看一下。" },
+          { id: "s3", kind: "assistant", text: "画布上有一个矩形。" },
+        ],
+      }),
+    );
+
+    const [chat] = listChats();
+    const items = loadChat(chat.id).items;
+    expect(items.map((item) => item.kind)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+
+    const tool = items.find((item) => item.kind === "tool");
+    expect(tool).toMatchObject({
+      name: "read_canvas",
+      args: '{"page":1}',
+      content: "L1: {type: rectangle}",
+    });
   });
 
-  it("clears the stored conversation", () => {
-    saveChat(createChat(), [{ role: "user", content: "hi" }], []);
-    clearChat();
-    expect(loadChat().messages).toEqual([]);
+  it("leaves a transcript that already has its tool steps alone", () => {
+    const chat = createChat();
+    saveChat(
+      chat,
+      [
+        { role: "user", content: "看一下画布" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            { id: "call_1", name: "read_canvas", arguments: '{"page":1}' },
+          ],
+        },
+        {
+          role: "tool",
+          content: "L1: {…}",
+          toolCallId: "call_1",
+          name: "read_canvas",
+        },
+      ],
+      [
+        { id: "x1", kind: "user", text: "看一下画布" },
+        {
+          id: "x2",
+          kind: "tool",
+          name: "read_canvas",
+          args: '{"page":1}',
+          status: "error",
+          content: "L1: {…}",
+        },
+      ],
+    );
+
+    // kept verbatim: same ids, and the original error status survives
+    expect(loadChat(chat.id).items).toEqual([
+      { id: "x1", kind: "user", text: "看一下画布" },
+      {
+        id: "x2",
+        kind: "tool",
+        name: "read_canvas",
+        args: '{"page":1}',
+        status: "error",
+        content: "L1: {…}",
+      },
+    ]);
+  });
+
+  it("recovers from corrupted storage", () => {
+    window.localStorage.setItem("excalidraw-agent-chat-index", "{oops");
+    window.localStorage.setItem(
+      "excalidraw-agent-chat:chat_x",
+      "not json either",
+    );
+    expect(listChats()).toEqual([]);
+    expect(loadChat().items).toEqual([]);
   });
 });

@@ -1,5 +1,7 @@
 import { parseSSEStream } from "@excalidraw/excalidraw";
 
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import { getAiApiKey, getAiBackendUrl, getAiModel } from "../runtimeEnv";
 
 import type { ChatMessage, ChatResult, ToolCall, ToolDef } from "./types";
@@ -76,7 +78,7 @@ const errorMessage = (error: unknown) => {
   if (error instanceof Error) {
     return error.message;
   }
-  return typeof error === "string" ? error : "未知错误";
+  return typeof error === "string" ? error : t("agent.errorUnknownDetail");
 };
 
 const describeHttpError = (status: number, body: string) => {
@@ -91,26 +93,25 @@ const describeHttpError = (status: number, body: string) => {
     // body was not JSON, keep it as is
   }
 
+  const detail = message ? ` — ${message}` : "";
+
   if (status === 401 || status === 403) {
-    return new AgentRequestError(
-      `API 密钥无效或无权限（${status}）。请在「AI 设置」里检查密钥。`,
-      status,
-    );
+    return new AgentRequestError(t("agent.errorUnauthorized"), status);
   }
   if (status === 402) {
-    return new AgentRequestError("账户余额不足（402），请充值后重试。", status);
+    return new AgentRequestError(t("agent.errorBalance"), status);
   }
   if (status === 429) {
-    return new AgentRequestError("请求过于频繁（429），请稍后重试。", status);
+    return new AgentRequestError(t("agent.errorRateLimit"), status);
   }
   if (status >= 500) {
     return new AgentRequestError(
-      `AI 服务端错误（${status}）${message ? `：${message}` : ""}`,
+      t("agent.errorServer", { status, detail }),
       status,
     );
   }
   return new AgentRequestError(
-    `AI 请求失败（${status}）${message ? `：${message}` : ""}`,
+    t("agent.errorUnknown", { status, detail }),
     status,
   );
 };
@@ -145,10 +146,7 @@ export const chatCompletion = async ({
 }: ChatRequest): Promise<ChatResult> => {
   const apiKey = getAiApiKey();
   if (!apiKey) {
-    throw new AgentRequestError(
-      "未配置 API 密钥。请点击右上角「AI 设置」填写密钥，或让部署方通过运行时配置注入。",
-      401,
-    );
+    throw new AgentRequestError(t("agent.errorMissingKey"), 401);
   }
 
   const url = `${getAiBackendUrl()}/chat/completions`;
@@ -231,10 +229,10 @@ const requestOnce = async ({
     });
   } catch (error) {
     if (signal?.aborted) {
-      throw new AgentRequestError("已取消", 499);
+      throw new AgentRequestError(t("agent.errorAborted"), 499);
     }
     throw new AgentRequestError(
-      `无法连接 AI 服务（${errorMessage(error)}）。请检查网络或后端地址。`,
+      t("agent.errorConnect", { detail: errorMessage(error) }),
     );
   }
 
@@ -245,7 +243,7 @@ const requestOnce = async ({
 
   const reader = response.body?.getReader();
   if (!reader) {
-    throw new AgentRequestError("AI 服务返回了空响应");
+    throw new AgentRequestError(t("agent.errorEmptyResponse"));
   }
 
   let content = "";
@@ -274,7 +272,7 @@ const requestOnce = async ({
         const message =
           typeof chunk.error === "string"
             ? chunk.error
-            : chunk.error.message ?? "AI 返回错误";
+            : chunk.error.message ?? t("agent.errorProvider");
         throw new AgentRequestError(message, 500);
       }
 
@@ -319,12 +317,14 @@ const requestOnce = async ({
     }
   } catch (error) {
     if (signal?.aborted) {
-      throw new AgentRequestError("已取消", 499);
+      throw new AgentRequestError(t("agent.errorAborted"), 499);
     }
     if (error instanceof AgentRequestError) {
       throw error;
     }
-    throw new AgentRequestError(`流式响应中断：${errorMessage(error)}`);
+    throw new AgentRequestError(
+      t("agent.errorStreamInterrupted", { detail: errorMessage(error) }),
+    );
   }
 
   const toolCalls: ToolCall[] = [...calls.entries()]

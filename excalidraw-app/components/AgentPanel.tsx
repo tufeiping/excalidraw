@@ -8,20 +8,21 @@ import {
 } from "react";
 
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
+import {
+  PANEL_DEFAULT_WIDTH,
+  clampPanelWidth,
+  loadPanelWidth,
+  savePanelWidth,
+} from "../agent/panelWidth";
 import { useAgent } from "../agent/useAgent";
 
 import "./AgentPanel.scss";
 
-import type { ChatItem } from "../agent/chatStore";
-
-const SUGGESTIONS = [
-  "把当前画布整理成三列布局",
-  "给选中的元素换成蓝色主题",
-  "在这张图下面补一段结论说明",
-];
+import type { ChatItem, ChatSummary } from "../agent/chatStore";
 
 /**
  * Minimal markdown: paragraphs, inline code, bold, fenced code blocks.
@@ -97,22 +98,11 @@ const summarizeArgs = (args: string) => {
   }
 };
 
-const statusLabel = (status: AgentItemStatus, name: string) => {
-  switch (status) {
-    case "thinking":
-      return "思考中…";
-    case "running-tool":
-      return "正在操作画布…";
-    default:
-      return name;
-  }
-};
-
-type AgentItemStatus = "idle" | "thinking" | "running-tool";
+type T = ReturnType<typeof useI18n>["t"];
 
 type ToolStep = Extract<ChatItem, { kind: "tool" }>;
 
-const ToolRow = ({ item }: { item: ToolStep }) => (
+const ToolRow = ({ item, t }: { item: ToolStep; t: T }) => (
   <details className="agent-tool" data-status={item.status}>
     <summary>
       <span
@@ -120,9 +110,11 @@ const ToolRow = ({ item }: { item: ToolStep }) => (
           item.status === "running" ? "running" : item.status
         }`}
       />
-      <span className="agent-tool__name">{item.name || "画布操作"}</span>
+      <span className="agent-tool__name">
+        {item.name || t("agent.toolFallbackName")}
+      </span>
       <span className="agent-tool__args">
-        {summarizeArgs(item.args) || "已执行"}
+        {summarizeArgs(item.args) || t("agent.toolFallbackDone")}
       </span>
     </summary>
     {item.content ? <pre>{item.content}</pre> : null}
@@ -130,58 +122,71 @@ const ToolRow = ({ item }: { item: ToolStep }) => (
 );
 
 /** one collapsed chip per run of tool calls, instead of a stack of rows */
-const StepsRow = ({ steps }: { steps: ToolStep[] }) => {
+const StepsRow = ({ steps, t }: { steps: ToolStep[]; t: T }) => {
   const running = steps.find((step) => step.status === "running");
   const failed = steps.filter((step) => step.status === "error").length;
   const status = running ? "running" : failed ? "error" : "ok";
+
+  const label = running
+    ? t("agent.stepsRunning", {
+        index: steps.indexOf(running) + 1,
+        name: running.name || t("agent.toolFallbackName"),
+      })
+    : failed
+    ? t("agent.stepsFailed", { count: steps.length, failed })
+    : t("agent.stepsDone", { count: steps.length });
 
   return (
     <details className="agent-steps" data-status={status}>
       <summary>
         <span className={`agent-tool__dot agent-tool__dot--${status}`} />
-        <span className="agent-steps__text">
-          {running
-            ? `正在执行第 ${steps.indexOf(running) + 1} 步 · ${
-                running.name || "画布操作"
-              }`
-            : failed
-            ? `已完成 ${steps.length} 步，${failed} 步失败`
-            : `已完成 ${steps.length} 步`}
-        </span>
-        <span className="agent-steps__hint">详情</span>
+        <span className="agent-steps__text">{label}</span>
+        <span className="agent-steps__hint">{t("agent.stepsDetails")}</span>
       </summary>
       <div className="agent-steps__list">
         {steps.map((step) => (
-          <ToolRow key={step.id} item={step} />
+          <ToolRow key={step.id} item={step} t={t} />
         ))}
       </div>
     </details>
   );
 };
 
-const formatTime = (ts?: number) =>
-  typeof ts === "number" && Number.isFinite(ts)
-    ? new Date(ts).toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "";
+const formatTime = (ts: number | undefined, lang: string, withDate = false) => {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) {
+    return "";
+  }
+  const date = new Date(ts);
+  if (withDate) {
+    return date.toLocaleString(lang, {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  return date.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+};
 
 const MessageHead = ({
   role,
   ts,
+  lang,
+  t,
 }: {
   role: "user" | "assistant";
   ts?: number;
+  lang: string;
+  t: T;
 }) => {
-  const time = formatTime(ts);
+  const time = formatTime(ts, lang);
   return (
     <div className="agent-msg__head">
       <span className={`agent-msg__badge agent-msg__badge--${role}`}>
-        {role === "user" ? "你" : "AI"}
+        {role === "user" ? t("agent.badgeYou") : t("agent.badgeAi")}
       </span>
       <span className="agent-msg__meta">
-        {role === "user" ? "你" : "AI 助手"}
+        {role === "user" ? t("agent.labelYou") : t("agent.title")}
         {time ? ` · ${time}` : ""}
       </span>
     </div>
@@ -219,13 +224,17 @@ const buildRows = (items: ChatItem[]): Row[] => {
 
 const MessageRow = ({
   item,
+  lang,
+  t,
 }: {
   item: Exclude<ChatItem, { kind: "tool" }>;
+  lang: string;
+  t: T;
 }) => {
   if (item.kind === "user") {
     return (
       <div className="agent-msg agent-msg--user">
-        <MessageHead role="user" ts={item.ts} />
+        <MessageHead role="user" ts={item.ts} lang={lang} t={t} />
         <div className="agent-msg__content">
           <div className="agent-msg__body">{item.text}</div>
         </div>
@@ -237,11 +246,11 @@ const MessageRow = ({
     const showText = hasVisibleText(item.text);
     return (
       <div className="agent-msg agent-msg--assistant">
-        <MessageHead role="assistant" ts={item.ts} />
+        <MessageHead role="assistant" ts={item.ts} lang={lang} t={t} />
         <div className="agent-msg__content">
           {item.reasoning ? (
             <details className="agent-reasoning">
-              <summary>思考过程</summary>
+              <summary>{t("agent.reasoning")}</summary>
               <div>{item.reasoning}</div>
             </details>
           ) : null}
@@ -258,6 +267,74 @@ const MessageRow = ({
   );
 };
 
+const HistoryList = ({
+  chats,
+  activeChatId,
+  lang,
+  t,
+  onOpen,
+  onDelete,
+  onBack,
+  disabled,
+}: {
+  chats: ChatSummary[];
+  activeChatId: string;
+  lang: string;
+  t: T;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+  onBack: () => void;
+  disabled: boolean;
+}) => (
+  <div className="agent-panel__history">
+    <div className="agent-panel__history-head">
+      <span>{t("agent.history")}</span>
+      <button type="button" className="agent-panel__button" onClick={onBack}>
+        {t("agent.back")}
+      </button>
+    </div>
+    {chats.length === 0 ? (
+      <div className="agent-panel__empty">{t("agent.historyEmpty")}</div>
+    ) : (
+      <ul className="agent-panel__history-list">
+        {chats.map((chat) => (
+          <li
+            key={chat.id}
+            className="agent-panel__history-item"
+            data-active={chat.id === activeChatId || undefined}
+          >
+            <button
+              type="button"
+              className="agent-panel__history-open"
+              onClick={() => onOpen(chat.id)}
+              disabled={disabled || chat.id === activeChatId}
+              title={chat.title || t("agent.historyUntitled")}
+            >
+              <span className="agent-panel__history-title">
+                {chat.title || t("agent.historyUntitled")}
+              </span>
+              <span className="agent-panel__history-meta">
+                {formatTime(chat.updatedAt, lang, true)}
+                {" · "}
+                {t("agent.historyItems", { count: chat.itemCount })}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="agent-panel__history-delete"
+              onClick={() => onDelete(chat.id)}
+              title={t("agent.historyDelete")}
+              aria-label={t("agent.historyDelete")}
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+);
+
 export const AgentPanel = ({
   excalidrawAPI,
   open,
@@ -267,17 +344,35 @@ export const AgentPanel = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
+  const { t, langCode } = useI18n();
   const appState = useUIAppState();
-  const { items, status, error, send, stop, reset, dismissError } =
-    useAgent(excalidrawAPI);
+  const {
+    items,
+    status,
+    error,
+    chats,
+    activeChatId,
+    send,
+    stop,
+    newChat,
+    openChat,
+    removeChat,
+    refreshChats,
+    dismissError,
+  } = useAgent(excalidrawAPI);
 
   const [draft, setDraft] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
+  const [resizing, setResizing] = useState(false);
   const [elementCount, setElementCount] = useState(
     () => excalidrawAPI?.getSceneElements().length ?? 0,
   );
 
   const rows = useMemo(() => buildRows(items), [items]);
 
+  const panelRef = useRef<HTMLElement | null>(null);
+  const resizingRef = useRef(false);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -290,6 +385,16 @@ export const AgentPanel = ({
     running &&
     lastItem?.kind !== "tool" &&
     !(lastItem?.kind === "assistant" && lastItem.text);
+
+  const suggestions = useMemo(
+    () => [
+      t("agent.suggestion1"),
+      t("agent.suggestion2"),
+      t("agent.suggestion3"),
+    ],
+    // `t` reads the active language, so rebuild when it changes
+    [langCode], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   useEffect(() => {
     if (!open) {
@@ -315,6 +420,68 @@ export const AgentPanel = ({
     node.style.height = "auto";
     node.style.height = `${Math.min(node.scrollHeight, 128)}px`;
   }, [draft, open]);
+
+  const persistWidth = useCallback((value: number) => {
+    const next = clampPanelWidth(value);
+    setPanelWidth(next);
+    savePanelWidth(next);
+  }, []);
+
+  // dragging the left edge: the panel is anchored to the right, so the width
+  // is whatever is left between the pointer and the panel's right border
+  const onResizeStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      resizingRef.current = true;
+      setResizing(true);
+      document.body.classList.add("agent-panel-resizing");
+    },
+    [],
+  );
+
+  const onResizeMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!resizingRef.current) {
+        return;
+      }
+      const right =
+        panelRef.current?.getBoundingClientRect().right ??
+        window.innerWidth - 8;
+      setPanelWidth(clampPanelWidth(right - event.clientX));
+    },
+    [],
+  );
+
+  const endResize = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!resizingRef.current) {
+        return;
+      }
+      resizingRef.current = false;
+      setResizing(false);
+      document.body.classList.remove("agent-panel-resizing");
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      persistWidth(panelWidth);
+    },
+    [panelWidth, persistWidth],
+  );
+
+  // keep the width sane when the window shrinks below it
+  useEffect(() => {
+    const onWindowResize = () =>
+      setPanelWidth((width) => clampPanelWidth(width));
+    window.addEventListener("resize", onWindowResize);
+    return () => {
+      window.removeEventListener("resize", onWindowResize);
+      document.body.classList.remove("agent-panel-resizing");
+    };
+  }, []);
 
   const onScroll = useCallback(() => {
     const node = messagesRef.current;
@@ -344,91 +511,170 @@ export const AgentPanel = ({
         type="button"
         className="agent-panel-toggle"
         onClick={() => onOpenChange(true)}
-        title="AI 助手"
+        title={t("agent.title")}
       >
-        AI 助手
+        {t("agent.title")}
       </button>
     );
   }
 
   return (
-    <aside className="agent-panel" aria-label="AI 助手">
+    <aside
+      className="agent-panel"
+      aria-label={t("agent.title")}
+      ref={panelRef}
+      data-resizing={resizing || undefined}
+      style={
+        { "--agent-panel-width": `${panelWidth}px` } as React.CSSProperties
+      }
+    >
+      <div
+        className="agent-panel__resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t("agent.resizeHint")}
+        title={t("agent.resizeHint")}
+        tabIndex={0}
+        onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        onDoubleClick={() => persistWidth(PANEL_DEFAULT_WIDTH)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            persistWidth(panelWidth + 24);
+          } else if (event.key === "ArrowRight") {
+            event.preventDefault();
+            persistWidth(panelWidth - 24);
+          } else if (event.key === "Home" || event.key === "Enter") {
+            event.preventDefault();
+            persistWidth(PANEL_DEFAULT_WIDTH);
+          }
+        }}
+      />
       <div className="agent-panel__header">
-        <span className="agent-panel__title">AI 助手</span>
+        <span className="agent-panel__title">{t("agent.title")}</span>
         <span className="agent-panel__status">
-          {statusLabel(status, `${elementCount} 个元素`)}
+          {running
+            ? status === "running-tool"
+              ? t("agent.statusRunningTool")
+              : t("agent.statusThinking")
+            : t("agent.statusElements", { count: elementCount })}
         </span>
         <button
           type="button"
           className="agent-panel__button"
-          onClick={reset}
-          disabled={running}
-          title="清空当前对话"
+          onClick={() => {
+            if (!showHistory) {
+              refreshChats();
+            }
+            setShowHistory((previous) => !previous);
+          }}
+          title={t("agent.history")}
         >
-          新对话
+          {t("agent.history")}
+        </button>
+        <button
+          type="button"
+          className="agent-panel__button"
+          onClick={() => {
+            stickToBottomRef.current = true;
+            setShowHistory(false);
+            newChat();
+          }}
+          disabled={running}
+          title={t("agent.newChat")}
+        >
+          {t("agent.newChat")}
         </button>
         <button
           type="button"
           className="agent-panel__button"
           onClick={() => onOpenChange(false)}
-          title="收起面板"
+          title={t("agent.hide")}
         >
-          收起
+          {t("agent.hide")}
         </button>
       </div>
 
-      <div
-        className="agent-panel__messages"
-        ref={messagesRef}
-        onScroll={onScroll}
-      >
-        {items.length === 0 ? (
-          <div className="agent-panel__empty">
-            <div>
-              我可以在画布上读、写、局部替换内容。当前画布有 {elementCount}{" "}
-              个元素
-              {selectedCount > 0 ? `，已选中 ${selectedCount} 个` : ""}。
+      {showHistory ? (
+        <HistoryList
+          chats={chats}
+          activeChatId={activeChatId}
+          lang={langCode}
+          t={t}
+          onOpen={(id) => {
+            stickToBottomRef.current = true;
+            setShowHistory(false);
+            openChat(id);
+          }}
+          onDelete={removeChat}
+          onBack={() => setShowHistory(false)}
+          disabled={running}
+        />
+      ) : (
+        <div
+          className="agent-panel__messages"
+          ref={messagesRef}
+          onScroll={onScroll}
+        >
+          {rows.length === 0 ? (
+            <div className="agent-panel__empty">
+              <div>
+                {t("agent.emptyIntro", { count: elementCount })}
+                {selectedCount > 0
+                  ? t("agent.emptySelected", { count: selectedCount })
+                  : ""}
+              </div>
+              <ul>
+                {suggestions.map((suggestion) => (
+                  <li key={suggestion}>
+                    <button
+                      type="button"
+                      className="agent-panel__button"
+                      onClick={() => {
+                        stickToBottomRef.current = true;
+                        void send(suggestion);
+                      }}
+                      disabled={running}
+                    >
+                      {suggestion}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul>
-              {SUGGESTIONS.map((suggestion) => (
-                <li key={suggestion}>
-                  <button
-                    type="button"
-                    className="agent-panel__button"
-                    onClick={() => {
-                      stickToBottomRef.current = true;
-                      void send(suggestion);
-                    }}
-                    disabled={running}
-                  >
-                    {suggestion}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          rows.map((row) =>
-            row.type === "steps" ? (
-              <StepsRow key={row.id} steps={row.steps} />
-            ) : (
-              <MessageRow key={row.item.id} item={row.item} />
-            ),
-          )
-        )}
-        {showIndicator ? (
-          <div className="agent-msg agent-msg--notice">
-            <div className="agent-msg__body">
-              {status === "running-tool" ? "正在操作画布…" : "思考中…"}
+          ) : (
+            rows.map((row) =>
+              row.type === "steps" ? (
+                <StepsRow key={row.id} steps={row.steps} t={t} />
+              ) : (
+                <MessageRow
+                  key={row.item.id}
+                  item={row.item}
+                  lang={langCode}
+                  t={t}
+                />
+              ),
+            )
+          )}
+          {showIndicator ? (
+            <div className="agent-msg agent-msg--notice">
+              <div className="agent-msg__body">
+                {status === "running-tool"
+                  ? t("agent.statusRunningTool")
+                  : t("agent.statusThinking")}
+              </div>
             </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      )}
 
       {error ? (
         <div className="agent-panel__hint">
           <span style={{ color: "var(--color-danger)" }}>{error}</span>
-          {/密钥/.test(error) ? (
+          {/密钥|API key/i.test(error) ? (
             <button
               type="button"
               className="agent-panel__button"
@@ -439,7 +685,7 @@ export const AgentPanel = ({
                 });
               }}
             >
-              去设置
+              {t("agent.openSettings")}
             </button>
           ) : (
             <button
@@ -447,7 +693,7 @@ export const AgentPanel = ({
               className="agent-panel__button"
               onClick={dismissError}
             >
-              知道了
+              {t("agent.dismiss")}
             </button>
           )}
         </div>
@@ -457,8 +703,8 @@ export const AgentPanel = ({
         <div className="agent-panel__hint">
           <span>
             {selectedCount > 0
-              ? `已选中 ${selectedCount} 个元素，说「这个」我会只改选中的部分`
-              : "Enter 发送，Shift + Enter 换行"}
+              ? t("agent.hintSelection", { count: selectedCount })
+              : t("agent.hintEnter")}
           </span>
         </div>
         <div className="agent-panel__input-row">
@@ -467,7 +713,7 @@ export const AgentPanel = ({
             ref={inputRef}
             value={draft}
             rows={1}
-            placeholder="告诉我你想改什么…"
+            placeholder={t("agent.placeholder")}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (
@@ -486,7 +732,7 @@ export const AgentPanel = ({
               className="agent-panel__send agent-panel__stop"
               onClick={stop}
             >
-              停止
+              {t("agent.stop")}
             </button>
           ) : (
             <button
@@ -495,7 +741,7 @@ export const AgentPanel = ({
               onClick={submit}
               disabled={!draft.trim()}
             >
-              发送
+              {t("agent.send")}
             </button>
           )}
         </div>

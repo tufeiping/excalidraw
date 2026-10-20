@@ -50,7 +50,15 @@ export const STORAGE_KEYS = {
 
   /** compact, line-numbered canvas snapshot read by the AI agent */
   LOCAL_STORAGE_AGENT_SCENE: "excalidraw-agent-scene",
-  /** AI agent conversation (messages + rendered items) */
+  /** AI agent conversation index (id / title / timestamps per conversation) */
+  LOCAL_STORAGE_AGENT_CHAT_INDEX: "excalidraw-agent-chat-index",
+  /** prefix of one stored AI agent conversation: `excalidraw-agent-chat:<id>` */
+  LOCAL_STORAGE_AGENT_CHAT_PREFIX: "excalidraw-agent-chat:",
+  /** user-dragged width of the AI assistant panel, in px */
+  LOCAL_STORAGE_AGENT_PANEL_WIDTH: "excalidraw-agent-panel-width",
+  /** which conversation the panel should reopen */
+  LOCAL_STORAGE_AGENT_CHAT_ACTIVE: "excalidraw-agent-chat-active",
+  /** legacy single-conversation key, imported on first read */
   LOCAL_STORAGE_AGENT_CHAT: "excalidraw-agent-chat",
 
   // do not use apart from migrations
