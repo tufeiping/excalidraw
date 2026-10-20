@@ -239,6 +239,14 @@ body.agent-panel-resizing {
       flex-direction: column;
       gap: 0.75rem;
       overscroll-behavior: contain;
+
+      // Rows must keep their intrinsic height: a flex child shrinks by default,
+      // and <details>/chips (which use `overflow: hidden`, so their automatic
+      // minimum size is 0) collapsed into a 1px sliver as soon as the restored
+      // transcript got taller than the panel.
+      > * {
+        flex: 0 0 auto;
+      }
     }
 
     &__empty {
@@ -263,6 +271,11 @@ body.agent-panel-resizing {
       padding: 0.25rem 0.75rem 0.75rem;
       display: flex;
       flex-direction: column;
+
+      > * {
+        flex: 0 0 auto;
+      }
+
       gap: 0.5rem;
       overscroll-behavior: contain;
     }
@@ -574,6 +587,8 @@ body.agent-panel-resizing {
     background: var(--color-surface-lowest);
     font-size: 0.75rem;
     overflow: hidden;
+    // keep the collapsed chip readable even if something squeezes the row
+    min-height: 30px;
 
     &[data-status="error"] {
       border-color: var(--color-danger);
