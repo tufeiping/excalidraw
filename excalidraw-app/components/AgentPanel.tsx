@@ -110,7 +110,9 @@ const statusLabel = (status: AgentItemStatus, name: string) => {
 
 type AgentItemStatus = "idle" | "thinking" | "running-tool";
 
-const ToolItem = ({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) => (
+type ToolStep = Extract<ChatItem, { kind: "tool" }>;
+
+const ToolRow = ({ item }: { item: ToolStep }) => (
   <details className="agent-tool" data-status={item.status}>
     <summary>
       <span
@@ -127,52 +129,116 @@ const ToolItem = ({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) => (
   </details>
 );
 
-// drawn for 14px: the stock tabler icons (1.25px stroke on a 24px grid) turn
-// into an unreadable smudge inside a 1.5rem circle
-const Avatar = ({ role }: { role: "user" | "assistant" }) =>
-  role === "assistant" ? (
-    <span
-      className="agent-msg__avatar agent-msg__avatar--assistant"
-      aria-hidden
-    >
-      <svg viewBox="0 0 24 24">
-        <path
-          fill="currentColor"
-          d="M10.5 3.4l1.9 4.7 4.7 1.9-4.7 1.9-1.9 4.7-1.9-4.7L3.9 10l4.7-1.9z"
-        />
-        <path
-          fill="currentColor"
-          d="M17.6 14.4l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"
-        />
-      </svg>
-    </span>
-  ) : (
-    <span className="agent-msg__avatar agent-msg__avatar--user" aria-hidden>
-      <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="8.4" r="3.6" fill="currentColor" />
-        <path
-          fill="currentColor"
-          d="M12 13.6c-4 0-7 2.3-7 5.1 0 .8.5 1.3 1.3 1.3h11.4c.8 0 1.3-.5 1.3-1.3 0-2.8-3-5.1-7-5.1z"
-        />
-      </svg>
-    </span>
-  );
+/** one collapsed chip per run of tool calls, instead of a stack of rows */
+const StepsRow = ({ steps }: { steps: ToolStep[] }) => {
+  const running = steps.find((step) => step.status === "running");
+  const failed = steps.filter((step) => step.status === "error").length;
+  const status = running ? "running" : failed ? "error" : "ok";
 
-const MessageItem = ({ item }: { item: ChatItem }) => {
-  if (item.kind === "tool") {
-    return <ToolItem item={item} />;
+  return (
+    <details className="agent-steps" data-status={status}>
+      <summary>
+        <span className={`agent-tool__dot agent-tool__dot--${status}`} />
+        <span className="agent-steps__text">
+          {running
+            ? `正在执行第 ${steps.indexOf(running) + 1} 步 · ${
+                running.name || "画布操作"
+              }`
+            : failed
+            ? `已完成 ${steps.length} 步，${failed} 步失败`
+            : `已完成 ${steps.length} 步`}
+        </span>
+        <span className="agent-steps__hint">详情</span>
+      </summary>
+      <div className="agent-steps__list">
+        {steps.map((step) => (
+          <ToolRow key={step.id} item={step} />
+        ))}
+      </div>
+    </details>
+  );
+};
+
+const formatTime = (ts?: number) =>
+  typeof ts === "number" && Number.isFinite(ts)
+    ? new Date(ts).toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
+const MessageHead = ({
+  role,
+  ts,
+}: {
+  role: "user" | "assistant";
+  ts?: number;
+}) => {
+  const time = formatTime(ts);
+  return (
+    <div className="agent-msg__head">
+      <span className={`agent-msg__badge agent-msg__badge--${role}`}>
+        {role === "user" ? "你" : "AI"}
+      </span>
+      <span className="agent-msg__meta">
+        {role === "user" ? "你" : "AI 助手"}
+        {time ? ` · ${time}` : ""}
+      </span>
+    </div>
+  );
+};
+
+type Row =
+  | { type: "message"; item: Exclude<ChatItem, { kind: "tool" }> }
+  | { type: "steps"; id: string; steps: ToolStep[] };
+
+const buildRows = (items: ChatItem[]): Row[] => {
+  const rows: Row[] = [];
+  for (const item of items) {
+    if (item.kind === "tool") {
+      const last = rows[rows.length - 1];
+      if (last?.type === "steps") {
+        last.steps.push(item);
+      } else {
+        rows.push({ type: "steps", id: item.id, steps: [item] });
+      }
+      continue;
+    }
+    // a turn that carried only tool calls leaves an empty assistant row behind
+    if (
+      item.kind === "assistant" &&
+      !hasVisibleText(item.text) &&
+      !item.reasoning?.trim()
+    ) {
+      continue;
+    }
+    rows.push({ type: "message", item });
+  }
+  return rows;
+};
+
+const MessageRow = ({
+  item,
+}: {
+  item: Exclude<ChatItem, { kind: "tool" }>;
+}) => {
+  if (item.kind === "user") {
+    return (
+      <div className="agent-msg agent-msg--user">
+        <MessageHead role="user" ts={item.ts} />
+        <div className="agent-msg__content">
+          <div className="agent-msg__body">{item.text}</div>
+        </div>
+      </div>
+    );
   }
 
   if (item.kind === "assistant") {
-    // a turn that carried only tool calls leaves an empty assistant row behind
     const showText = hasVisibleText(item.text);
-    if (!showText && !item.reasoning?.trim()) {
-      return null;
-    }
     return (
       <div className="agent-msg agent-msg--assistant">
-        <Avatar role="assistant" />
-        <div className="agent-msg__main">
+        <MessageHead role="assistant" ts={item.ts} />
+        <div className="agent-msg__content">
           {item.reasoning ? (
             <details className="agent-reasoning">
               <summary>思考过程</summary>
@@ -180,17 +246,6 @@ const MessageItem = ({ item }: { item: ChatItem }) => {
             </details>
           ) : null}
           {showText ? <RichText text={item.text} /> : null}
-        </div>
-      </div>
-    );
-  }
-
-  if (item.kind === "user") {
-    return (
-      <div className="agent-msg agent-msg--user">
-        <Avatar role="user" />
-        <div className="agent-msg__main">
-          <div className="agent-msg__body">{item.text}</div>
         </div>
       </div>
     );
@@ -220,6 +275,8 @@ export const AgentPanel = ({
   const [elementCount, setElementCount] = useState(
     () => excalidrawAPI?.getSceneElements().length ?? 0,
   );
+
+  const rows = useMemo(() => buildRows(items), [items]);
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -351,7 +408,13 @@ export const AgentPanel = ({
             </ul>
           </div>
         ) : (
-          items.map((item) => <MessageItem key={item.id} item={item} />)
+          rows.map((row) =>
+            row.type === "steps" ? (
+              <StepsRow key={row.id} steps={row.steps} />
+            ) : (
+              <MessageRow key={row.item.id} item={row.item} />
+            ),
+          )
         )}
         {showIndicator ? (
           <div className="agent-msg agent-msg--notice">

@@ -115,7 +115,13 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
         const created = current;
         commitItems((previous) => [
           ...previous,
-          { id: created.id, kind: "assistant", text: "", reasoning: "" },
+          {
+            id: created.id,
+            kind: "assistant",
+            text: "",
+            reasoning: "",
+            ts: Date.now(),
+          },
         ]);
       }
       const active = current;
@@ -147,7 +153,7 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
       assistantRef.current = null;
       commitItems((previous) => [
         ...previous,
-        { id: nextItemId(), kind: "user", text: input },
+        { id: nextItemId(), kind: "user", text: input, ts: Date.now() },
       ]);
 
       const controller = new AbortController();
@@ -197,6 +203,7 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
                   name: event.call.name,
                   args: event.call.arguments,
                   status: "running",
+                  ts: Date.now(),
                 },
               ]);
               break;
@@ -223,14 +230,24 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
               assistantRef.current = null;
               commitItems((previous) => [
                 ...previous,
-                { id: nextItemId(), kind: "notice", text: event.text },
+                {
+                  id: nextItemId(),
+                  kind: "notice",
+                  text: event.text,
+                  ts: Date.now(),
+                },
               ]);
               break;
             case "error":
               setError(event.message);
               commitItems((previous) => [
                 ...previous,
-                { id: nextItemId(), kind: "error", text: event.message },
+                {
+                  id: nextItemId(),
+                  kind: "error",
+                  text: event.message,
+                  ts: Date.now(),
+                },
               ]);
               break;
           }

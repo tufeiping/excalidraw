@@ -3,12 +3,13 @@ import { STORAGE_KEYS } from "../app_constants";
 import type { ChatMessage } from "./types";
 
 export type ChatItem =
-  | { id: string; kind: "user"; text: string }
+  | { id: string; kind: "user"; text: string; ts?: number }
   | {
       id: string;
       kind: "assistant";
       text: string;
       reasoning?: string;
+      ts?: number;
     }
   | {
       id: string;
@@ -17,8 +18,9 @@ export type ChatItem =
       args: string;
       status: "running" | "ok" | "error";
       content?: string;
+      ts?: number;
     }
-  | { id: string; kind: "notice" | "error"; text: string };
+  | { id: string; kind: "notice" | "error"; text: string; ts?: number };
 
 export type StoredChat = {
   version: 1;

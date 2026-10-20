@@ -211,59 +211,50 @@
 
   .agent-msg {
     display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.3rem;
     max-width: 100%;
 
-    &__avatar {
+    &__head {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    &__badge {
       flex: 0 0 auto;
       width: 1.5rem;
       height: 1.5rem;
-      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid var(--default-border-color);
-      background: var(--color-surface-low);
-      color: var(--agent-panel-muted);
-      margin-top: 0.05rem;
+      border-radius: 0.375rem;
+      background: var(--color-surface-high);
+      color: var(--text-primary-color);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      user-select: none;
 
       &--assistant {
         background: var(--color-primary);
-        border-color: transparent;
-        color: #fff;
-        padding: 0.05rem;
-      }
-
-      &--user {
-        background: var(--color-surface-high);
-        color: var(--color-gray-70);
-
-        .theme--dark & {
-          color: var(--color-gray-30);
-        }
-      }
-
-      svg {
-        width: 0.95rem;
-        height: 0.95rem;
-        display: block;
+        color: var(--color-surface-lowest);
       }
     }
 
-    &__main {
-      flex: 1 1 auto;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    &__role {
+    &__meta {
       font-size: 0.6875rem;
       color: var(--agent-panel-muted);
-      letter-spacing: 0.04em;
+      letter-spacing: 0.02em;
+    }
+
+    &__content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 0;
+      // line the content up with the meta label, not with the badge
+      padding-left: calc(1.5rem + 0.5rem);
     }
 
     &__body {
@@ -300,38 +291,75 @@
       }
     }
 
-    // NB: `&--user &__body` would expand to `.excalidraw .agent-msg--user
-    // .excalidraw .agent-msg__body` (both `&` resolve to the full parent
-    // chain), so the modifiers below nest the element name explicitly
-    &--user {
-      flex-direction: row-reverse;
-
-      .agent-msg__main {
-        align-items: flex-end;
-      }
-
-      .agent-msg__body {
-        background: var(--color-surface-low);
-        border-radius: var(--border-radius-lg);
-        padding: 0.45rem 0.7rem;
-        align-self: flex-end;
-        max-width: 88%;
-      }
-    }
-
-    &--notice,
-    &--error {
-      .agent-msg__body {
-        font-size: 0.75rem;
-        color: var(--agent-panel-muted);
-        border-left: 2px solid var(--color-surface-mid);
-        padding-left: 0.5rem;
-      }
+    &--notice .agent-msg__body,
+    &--error .agent-msg__body {
+      font-size: 0.75rem;
+      color: var(--agent-panel-muted);
+      border-left: 2px solid var(--color-surface-mid);
+      padding-left: 0.5rem;
     }
 
     &--error .agent-msg__body {
       color: var(--color-danger);
       border-left-color: var(--color-danger);
+    }
+  }
+
+  .agent-steps {
+    border: 1px solid var(--default-border-color);
+    border-radius: var(--border-radius-md, 0.375rem);
+    background: var(--color-surface-lowest);
+    font-size: 0.75rem;
+    overflow: hidden;
+
+    &[data-status="error"] {
+      border-color: var(--color-danger);
+    }
+
+    summary {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.45rem 0.6rem;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      color: var(--text-primary-color);
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+    }
+
+    &__text {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &__hint {
+      flex: 0 0 auto;
+      font-size: 0.6875rem;
+      color: var(--agent-panel-muted);
+
+      &::after {
+        content: " ▸";
+      }
+    }
+
+    &[open] .agent-steps__hint::after {
+      content: " ▾";
+    }
+
+    &__list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.5rem;
+      border-top: 1px solid var(--default-border-color);
+      background: var(--color-surface-low);
     }
   }
 
@@ -383,8 +411,6 @@
   }
 
   .agent-tool {
-    // line up with the assistant text, leaving room for its avatar
-    margin-left: calc(1.5rem + 0.5rem);
     border: 1px solid var(--default-border-color);
     border-radius: var(--border-radius-md, 0.375rem);
     background: var(--color-surface-lowest);
