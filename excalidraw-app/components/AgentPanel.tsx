@@ -285,55 +285,112 @@ const HistoryList = ({
   onDelete: (id: string) => void;
   onBack: () => void;
   disabled: boolean;
-}) => (
-  <div className="agent-panel__history">
-    <div className="agent-panel__history-head">
-      <span>{t("agent.history")}</span>
-      <button type="button" className="agent-panel__button" onClick={onBack}>
-        {t("agent.back")}
-      </button>
+}) => {
+  // deleting a conversation is irreversible, so it takes a second click
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingDelete && !chats.some((chat) => chat.id === pendingDelete)) {
+      setPendingDelete(null);
+    }
+  }, [chats, pendingDelete]);
+
+  return (
+    <div className="agent-panel__history">
+      <div className="agent-panel__history-head">
+        <span>{t("agent.history")}</span>
+        <button type="button" className="agent-panel__button" onClick={onBack}>
+          {t("agent.back")}
+        </button>
+      </div>
+      {chats.length === 0 ? (
+        <div className="agent-panel__empty">{t("agent.historyEmpty")}</div>
+      ) : (
+        <ul className="agent-panel__history-list">
+          {chats.map((chat) => {
+            const confirming = pendingDelete === chat.id;
+            return (
+              <li
+                key={chat.id}
+                className="agent-panel__history-item"
+                data-active={chat.id === activeChatId || undefined}
+                data-confirming={confirming || undefined}
+              >
+                {confirming ? (
+                  <div
+                    className="agent-panel__history-confirm"
+                    role="alertdialog"
+                    aria-label={t("agent.historyDeleteConfirm")}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.stopPropagation();
+                        setPendingDelete(null);
+                      }
+                    }}
+                  >
+                    <span className="agent-panel__history-confirm-text">
+                      {t("agent.historyDeleteConfirm")}
+                      <span className="agent-panel__history-confirm-hint">
+                        {t("agent.historyDeleteConfirmHint")}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="agent-panel__button agent-panel__button--danger"
+                      onClick={() => {
+                        setPendingDelete(null);
+                        onDelete(chat.id);
+                      }}
+                    >
+                      {t("agent.historyDeleteConfirmYes")}
+                    </button>
+                    <button
+                      type="button"
+                      className="agent-panel__button"
+                      onClick={() => setPendingDelete(null)}
+                      autoFocus
+                    >
+                      {t("agent.historyDeleteConfirmNo")}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="agent-panel__history-open"
+                      onClick={() => onOpen(chat.id)}
+                      disabled={disabled || chat.id === activeChatId}
+                      title={chat.title || t("agent.historyUntitled")}
+                    >
+                      <span className="agent-panel__history-title">
+                        {chat.title || t("agent.historyUntitled")}
+                      </span>
+                      <span className="agent-panel__history-meta">
+                        {formatTime(chat.updatedAt, lang, true)}
+                        {" · "}
+                        {t("agent.historyItems", { count: chat.itemCount })}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="agent-panel__history-delete"
+                      onClick={() => setPendingDelete(chat.id)}
+                      disabled={disabled}
+                      title={t("agent.historyDelete")}
+                      aria-label={t("agent.historyDelete")}
+                    >
+                      ×
+                    </button>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
-    {chats.length === 0 ? (
-      <div className="agent-panel__empty">{t("agent.historyEmpty")}</div>
-    ) : (
-      <ul className="agent-panel__history-list">
-        {chats.map((chat) => (
-          <li
-            key={chat.id}
-            className="agent-panel__history-item"
-            data-active={chat.id === activeChatId || undefined}
-          >
-            <button
-              type="button"
-              className="agent-panel__history-open"
-              onClick={() => onOpen(chat.id)}
-              disabled={disabled || chat.id === activeChatId}
-              title={chat.title || t("agent.historyUntitled")}
-            >
-              <span className="agent-panel__history-title">
-                {chat.title || t("agent.historyUntitled")}
-              </span>
-              <span className="agent-panel__history-meta">
-                {formatTime(chat.updatedAt, lang, true)}
-                {" · "}
-                {t("agent.historyItems", { count: chat.itemCount })}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="agent-panel__history-delete"
-              onClick={() => onDelete(chat.id)}
-              title={t("agent.historyDelete")}
-              aria-label={t("agent.historyDelete")}
-            >
-              ×
-            </button>
-          </li>
-        ))}
-      </ul>
-    )}
-  </div>
-);
+  );
+};
 
 export const AgentPanel = ({
   excalidrawAPI,
@@ -674,7 +731,8 @@ export const AgentPanel = ({
       {error ? (
         <div className="agent-panel__hint">
           <span style={{ color: "var(--color-danger)" }}>{error}</span>
-          {/密钥|API key/i.test(error) ? (
+          {error === t("agent.errorMissingKey") ||
+          /密钥|API key/i.test(error) ? (
             <button
               type="button"
               className="agent-panel__button"

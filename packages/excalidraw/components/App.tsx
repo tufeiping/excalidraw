@@ -1911,9 +1911,9 @@ class App extends React.Component<AppProps, AppState> {
             } else {
               let message: string;
               if (data.code === "ERR_GENERATION_INTERRUPTED") {
-                message = "Generation was interrupted...";
+                message = t("agent.embedErrorInterrupted");
               } else {
-                message = data.message || "内容生成失败，请确认API KEY正确";
+                message = data.message || t("agent.embedErrorMessage");
               }
               src = {
                 intrinsicSize: { w: el.width, h: el.height },
@@ -1936,7 +1936,7 @@ class App extends React.Component<AppProps, AppState> {
                         margin-bottom: 0.5rem;
                       }
                     </style>
-                    <h1>❌错误</h1>
+                    <h1>❌ ${t("agent.embedErrorTitle")}</h1>
                     <h3>${message}</h3>
                   `);
                 },

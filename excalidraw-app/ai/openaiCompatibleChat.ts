@@ -152,7 +152,7 @@ export const streamTextToDiagram = async ({
     });
   } catch (error: any) {
     if (error?.name === "AbortError") {
-      return { error: toRequestError("Request aborted", 499) };
+      return { error: toRequestError(t("agent.errorRequestAborted"), 499) };
     }
     return {
       error: toRequestError(error?.message || t("agent.errorNetwork"), 500),
@@ -177,7 +177,7 @@ export const streamTextToDiagram = async ({
 
   const reader = response.body?.getReader();
   if (!reader) {
-    return { error: toRequestError("AI 服务响应无效", 500) };
+    return { error: toRequestError(t("agent.errorInvalidResponse"), 500) };
   }
 
   onStreamCreated?.();
@@ -220,7 +220,10 @@ export const streamTextToDiagram = async ({
       return { error: toRequestError("Request aborted", 499) };
     }
     return {
-      error: toRequestError(error?.message || "AI 流式响应中断", 500),
+      error: toRequestError(
+        error?.message || t("agent.errorStreamInterrupted", { detail: "" }),
+        500,
+      ),
     };
   }
 
@@ -233,7 +236,7 @@ export const streamTextToDiagram = async ({
 
   if (!generatedResponse) {
     return {
-      error: toRequestError("AI 未返回图表内容，请调整提示词后重试", 500),
+      error: toRequestError(t("agent.errorNoDiagram"), 500),
     };
   }
 

@@ -1,4 +1,5 @@
 import { eyeIcon, MagicIcon } from "@excalidraw/excalidraw/components/icons";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
 
@@ -21,6 +22,8 @@ export const AppMainMenu: React.FC<{
   /** opens the canvas AI agent panel */
   onOpenAgent?: () => void;
 }> = React.memo((props) => {
+  const { t } = useI18n();
+
   return (
     <MainMenu>
       <MainMenu.DefaultItems.LoadScene />
@@ -77,12 +80,12 @@ export const AppMainMenu: React.FC<{
       )}
       {props.onOpenAgent && (
         <MainMenu.Item onSelect={props.onOpenAgent} icon={MagicIcon}>
-          AI 助手
+          {t("agent.menuOpen")}
         </MainMenu.Item>
       )}
       {props.onOpenAISettings && (
         <MainMenu.Item onSelect={props.onOpenAISettings} icon={MagicIcon}>
-          AI 设置
+          {t("agent.menuSettings")}
         </MainMenu.Item>
       )}
       <MainMenu.Separator />

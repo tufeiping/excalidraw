@@ -817,6 +817,10 @@
     "historyUntitled": "Untitled conversation",
     "historyItems": "{{count}} items",
     "historyDelete": "Delete this conversation",
+    "historyDeleteConfirm": "Delete this conversation?",
+    "historyDeleteConfirmHint": "This can't be undone.",
+    "historyDeleteConfirmYes": "Delete",
+    "historyDeleteConfirmNo": "Cancel",
     "noticeStopped": "Stopped",
     "noticeStoppedPending": "Stopped — the remaining operations were not executed",
     "noticeTooManyFailures": "Too many failed calls ({{count}}), paused. Add more detail and try again.",
@@ -835,7 +839,15 @@
     "errorEmptyResponse": "The AI service returned an empty response",
     "errorStreamInterrupted": "The stream was interrupted: {{detail}}",
     "errorUnknownDetail": "Unknown error",
-    "errorProvider": "The AI service returned an error"
+    "errorProvider": "The AI service returned an error",
+    "menuOpen": "AI assistant",
+    "menuSettings": "AI settings",
+    "errorInvalidResponse": "The AI service returned an invalid response",
+    "errorRequestAborted": "Request aborted",
+    "errorNoDiagram": "The AI returned no diagram — adjust the prompt and try again",
+    "embedErrorTitle": "Error",
+    "embedErrorMessage": "Generation failed — check that the API key is valid",
+    "embedErrorInterrupted": "Generation was interrupted"
   },
   "aiSettings": {
     "title": "AI assistant settings",

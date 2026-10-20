@@ -815,6 +815,10 @@
     "historyUntitled": "未命名对话",
     "historyItems": "{{count}} 条记录",
     "historyDelete": "删除这条对话",
+    "historyDeleteConfirm": "删除这段对话？",
+    "historyDeleteConfirmHint": "删除后无法恢复。",
+    "historyDeleteConfirmYes": "删除",
+    "historyDeleteConfirmNo": "取消",
     "noticeStopped": "已停止",
     "noticeStoppedPending": "已停止，未执行剩余操作",
     "noticeTooManyFailures": "连续失败次数过多（{{count}} 次），已暂停。请补充信息后重试。",
@@ -833,7 +837,15 @@
     "errorEmptyResponse": "AI 服务返回了空响应",
     "errorStreamInterrupted": "流式响应中断：{{detail}}",
     "errorUnknownDetail": "未知错误",
-    "errorProvider": "AI 返回错误"
+    "errorProvider": "AI 返回错误",
+    "menuOpen": "AI 助手",
+    "menuSettings": "AI 设置",
+    "errorInvalidResponse": "AI 服务响应无效",
+    "errorRequestAborted": "请求已取消",
+    "errorNoDiagram": "AI 未返回图表内容，请调整提示词后重试",
+    "embedErrorTitle": "错误",
+    "embedErrorMessage": "内容生成失败，请确认 API KEY 正确",
+    "embedErrorInterrupted": "生成被中断了"
   },
   "aiSettings": {
     "title": "AI 助手设置",
