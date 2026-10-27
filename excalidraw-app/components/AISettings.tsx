@@ -48,10 +48,15 @@ export const AISettings = ({
             account: session.user.name ?? session.user.sub,
             model: config.ne.model || session.defaultModel,
             models: session.models.length ? session.models : undefined,
+            billing: session.billing,
             remaining: session.balance?.remaining ?? null,
             todayTokens: session.usage?.totalTokens ?? null,
           }
-        : { state: "error", reason: session.reason },
+        : {
+            state: "error",
+            reason: session.reason,
+            identifiers: session.diagnostics?.identifiers,
+          },
     );
   }, [config.ne.model]);
 

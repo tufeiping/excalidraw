@@ -51,6 +51,11 @@ export type NeSession =
       models: string[];
       defaultModel: string;
       csrfToken: string;
+      /**
+       * `user` — charged to the signed-in NE account (a balance exists)
+       * `service` — the deployment pays; no per-account balance to show
+       */
+      billing?: "user" | "service";
       /** unix seconds */
       expiresAt?: number;
       balance?: NeBalance | null;
@@ -66,6 +71,13 @@ export type NeSession =
        * `no_llm_access`    — the NE account itself is not allowed to use LLM
        */
       reason: NeFailureReason;
+      /** what the relay looked at; the user's own identifiers, safe to show */
+      diagnostics?: {
+        session?: boolean;
+        identifiers?: string[];
+        tokenFound?: boolean;
+        serviceFallback?: boolean;
+      };
     };
 
 /** How long a successful session probe is reused before asking again. */
@@ -108,6 +120,7 @@ const parseSession = (payload: any): NeSession => {
     defaultModel:
       typeof payload.defaultModel === "string" ? payload.defaultModel : "",
     csrfToken: typeof payload.csrfToken === "string" ? payload.csrfToken : "",
+    billing: payload.billing === "service" ? "service" : "user",
     expiresAt:
       typeof payload.expiresAt === "number" ? payload.expiresAt : undefined,
     balance: payload.balance ?? null,

@@ -900,6 +900,8 @@
     "neBalance": "Remaining NE quota: {{remaining}}",
     "neToday": "Today: {{tokens}} tokens",
     "neNotLinked": "This FlyLaTeX account has no NE token: it was not signed in through NE. Sign in with your NE account (email or phone) once, then check again — or switch to your own LLM service.",
-    "neReauth": "Your NE session has expired. Sign in through NE again on FlyLaTeX, then check again — or switch to your own LLM service."
+    "neReauth": "Your NE session has expired. Sign in through NE again on FlyLaTeX, then check again — or switch to your own LLM service.",
+    "neOkService": "Connected: {{account}} · model {{model}} — provided by this site, not charged to your NE balance",
+    "neCheckedAccounts": "Accounts checked: {{accounts}}."
   }
 }

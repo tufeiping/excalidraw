@@ -895,6 +895,8 @@
     "neBalance": "NE 剩余额度：{{remaining}}",
     "neToday": "今日已用：{{tokens}} tokens",
     "neNotLinked": "当前 FlyLaTeX 账号没有 NE 令牌——它不是通过 NE 登录的。请用 NE 账号（邮箱或手机号）登录一次后再检测，或改用自备 LLM 服务。",
-    "neReauth": "NE 登录状态已失效，请在 FlyLaTeX 侧重新用 NE 账号登录后再检测，或改用自备 LLM 服务。"
+    "neReauth": "NE 登录状态已失效，请在 FlyLaTeX 侧重新用 NE 账号登录后再检测，或改用自备 LLM 服务。",
+    "neOkService": "已连接：{{account}} · 模型 {{model}} —— 由本站额度提供，不扣你的 NE 余额",
+    "neCheckedAccounts": "已核对的账号：{{accounts}}。"
   }
 }

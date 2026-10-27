@@ -38,6 +38,10 @@ export type AiSettingsNeStatus = {
     | "no_llm_access";
   /** models this account may use, in the relay's order */
   models?: string[];
+  /** `user` = charged to this account, `service` = the deployment pays */
+  billing?: "user" | "service";
+  /** identities the relay checked; own data, shown to make 401s explainable */
+  identifiers?: string[];
   /** remaining NE quota, as reported by the gateway (same number as the
    * account page — never recomputed here) */
   remaining?: number | null;
@@ -92,18 +96,34 @@ export const MagicSettings = ({
     return null;
   }
 
+  // a service-billed session has no balance of its own — say so instead of
+  // showing a number that belongs to someone else
+  const billedByService =
+    neStatus.state === "ok" && neStatus.billing === "service";
+  const checkedAccounts = neStatus.identifiers?.length
+    ? t("aiSettings.neCheckedAccounts", {
+        accounts: neStatus.identifiers.join(" / "),
+      })
+    : "";
+
   const neDetail =
     neStatus.state === "ok"
-      ? t("aiSettings.neOk", {
-          account: neStatus.account ?? "",
-          model: neStatus.model ?? "",
-        })
+      ? billedByService
+        ? t("aiSettings.neOkService", {
+            account: neStatus.account ?? "",
+            model: neStatus.model ?? "",
+          })
+        : t("aiSettings.neOk", {
+            account: neStatus.account ?? "",
+            model: neStatus.model ?? "",
+          })
       : neStatus.state === "checking"
       ? t("aiSettings.neChecking")
       : neStatus.reason === "not_logged_in"
       ? t("aiSettings.neNotLoggedIn")
       : neStatus.reason === "ne_not_linked"
-      ? t("aiSettings.neNotLinked")
+      ? t("aiSettings.neNotLinked") +
+        (checkedAccounts ? ` ${checkedAccounts}` : "")
       : neStatus.reason === "reauth_required"
       ? t("aiSettings.neReauth")
       : neStatus.reason === "no_llm_access"
@@ -179,7 +199,7 @@ export const MagicSettings = ({
             </>
           ) : null}
 
-          {typeof neStatus.remaining === "number" ? (
+          {!billedByService && typeof neStatus.remaining === "number" ? (
             <div className="MagicSettings__quota">
               <span>
                 {t("aiSettings.neBalance", {
