@@ -782,7 +782,7 @@
   "agent": {
     "title": "AI 助手",
     "setupTitle": "未配置 LLM 服务",
-    "setupBody": "填写 API Key 后即可使用，密钥只保存在本机浏览器里。",
+    "setupBody": "选择助手的模型来源：使用本站提供的 NE 额度，或自备 LLM 服务。只有在你真正发出指令时才会发起请求。",
     "setupModel": "模型：{{model}}",
     "badgeAi": "AI",
     "badgeYou": "你",
@@ -848,7 +848,11 @@
     "errorNoDiagram": "AI 未返回图表内容，请调整提示词后重试",
     "embedErrorTitle": "错误",
     "embedErrorMessage": "内容生成失败，请确认 API KEY 正确",
-    "embedErrorInterrupted": "生成被中断了"
+    "embedErrorInterrupted": "生成被中断了",
+    "errorNeNotLoggedIn": "未登录 FlyLaTeX。请在 AI 设置里登录，或改用自备 LLM 服务。",
+    "errorDisabled": "AI 助手已关闭，请在 AI 设置里开启。",
+    "errorMissingBaseUrl": "缺少 Base URL，请在 AI 设置里填写。",
+    "errorMissingModel": "缺少模型名称，请在 AI 设置里填写。"
   },
   "aiSettings": {
     "title": "AI 助手设置",
@@ -863,6 +867,29 @@
     "clearCached": "清除浏览器缓存的 API 密钥",
     "capabilities": "配置好密钥后，从菜单打开右侧的「AI 助手」面板，用自然语言直接编辑画布，也可以让它按 Mermaid 描述整块生成图表。工具栏里的「Mermaid 至 Excalidraw」不需要密钥，是在浏览器里本地转换的。",
     "confirm": "确认",
-    "accountEnd": "。"
+    "accountEnd": "。",
+    "modeNe": "NE 账号（本站提供）",
+    "modeCustom": "自备 LLM 服务",
+    "modeOff": "关闭",
+    "neIntro": "使用 FlyLaTeX 账号自带的 NE 额度。不需要粘贴任何密钥：白板向本站的转发服务申请令牌，令牌只保存在服务端。",
+    "neUnknown": "尚未检测。",
+    "neChecking": "检测中…",
+    "neOk": "已连接：{{account}} · 模型 {{model}}",
+    "neCheck": "检测连接",
+    "neNotLoggedIn": "当前浏览器没有 FlyLaTeX 登录态——请在另一个标签页登录 FlyLaTeX 后再检测。也可以改用自备 LLM 服务。",
+    "neNoAccess": "该账号没有 LLM 使用权限，请联系管理员，或改用自备 LLM 服务。",
+    "neUnavailable": "转发服务暂时不可用，可以稍后重试，或改用自备 LLM 服务。",
+    "neHint": "用量从你自己的 NE 账号扣除，密钥不会下发到本页面。",
+    "customIntro": "把助手接到任意 OpenAI 兼容接口。以下配置只保存在本浏览器。",
+    "presetLabel": "服务",
+    "baseUrlLabel": "Base URL",
+    "baseUrlPlaceholder": "https://api.deepseek.com/v1",
+    "modelLabel": "模型",
+    "modelPlaceholder": "deepseek-chat",
+    "showKey": "显示密钥",
+    "hideKey": "隐藏密钥",
+    "offIntro": "AI 助手已关闭，需要时可以重新打开。",
+    "neBalance": "NE 剩余额度：{{remaining}}",
+    "neToday": "今日已用：{{tokens}} tokens"
   }
 }

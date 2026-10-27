@@ -12,43 +12,96 @@ import { TextField } from "./TextField";
 
 import "./MagicSettings.scss";
 
+export type AiSettingsMode = "ne" | "custom" | "off";
+
+export type AiSettingsCustom = {
+  preset: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+};
+
+export type AiSettingsPreset = { id: string; label: string };
+
+export type AiSettingsNeStatus = {
+  state: "unknown" | "checking" | "ok" | "error";
+  /** resolved model name when the relay answered */
+  model?: string;
+  /** account label (`nick_name` / email) when the relay answered */
+  account?: string;
+  /** one of the relay's failure reasons */
+  reason?: "not_logged_in" | "unavailable" | "no_llm_access";
+  /** models this account may use, in the relay's order */
+  models?: string[];
+  /** remaining NE quota, as reported by the gateway (same number as the
+   * account page — never recomputed here) */
+  remaining?: number | null;
+  /** tokens spent today, from the relay's own call ledger */
+  todayTokens?: number | null;
+};
+
 /**
  * AI settings dialog.
  *
- * FlyLaTeX talks to an OpenAI-compatible endpoint (DeepSeek by default) directly
- * from the browser using the user's own API key, so the key never leaves the
- * device and no server proxy is required.
+ * The dialog is intentionally stateless about storage: it renders whatever the
+ * host app passes in and reports edits back. That keeps `packages/excalidraw`
+ * free of `localStorage` knowledge and lets the host own persistence,
+ * migration and the relay probe.
  */
 export const MagicSettings = ({
-  apiKey,
-  onChange,
+  mode,
+  custom,
+  presets,
+  neStatus,
+  neModel,
+  onChangeMode,
+  onChangeCustom,
+  onChangeNeModel,
+  onCheckNe,
   onClose,
 }: {
-  apiKey: string | null;
-  /**
-   * Called with the (trimmed) key whenever it changes or the dialog is
-   * confirmed/closed. The host app is responsible for persisting it.
-   */
-  onChange: (key: string) => void;
+  mode: AiSettingsMode;
+  custom: AiSettingsCustom;
+  presets: readonly AiSettingsPreset[];
+  neStatus: AiSettingsNeStatus;
+  /** model pinned for the relay, empty = let the server choose */
+  neModel: string;
+  onChangeMode: (mode: AiSettingsMode) => void;
+  onChangeCustom: (patch: Partial<AiSettingsCustom>) => void;
+  onChangeNeModel: (model: string) => void;
+  onCheckNe: () => void;
   onClose: () => void;
 }) => {
   const { t } = useI18n();
-  const [keyInputValue, setKeyInputValue] = useState(apiKey ?? "");
   const appState = useUIAppState();
+  const [showKey, setShowKey] = useState(false);
 
-  const onConfirm = () => {
-    onChange(keyInputValue.trim());
-    onClose();
-  };
+  const onConfirm = () => onClose();
 
-  const onClear = () => {
-    setKeyInputValue("");
-    onChange("");
+  const onClearKey = () => {
+    onChangeCustom({ apiKey: "" });
+    setShowKey(false);
   };
 
   if (appState.openDialog?.name !== "settings") {
     return null;
   }
+
+  const neDetail =
+    neStatus.state === "ok"
+      ? t("aiSettings.neOk", {
+          account: neStatus.account ?? "",
+          model: neStatus.model ?? "",
+        })
+      : neStatus.state === "checking"
+      ? t("aiSettings.neChecking")
+      : neStatus.reason === "not_logged_in"
+      ? t("aiSettings.neNotLoggedIn")
+      : neStatus.reason === "no_llm_access"
+      ? t("aiSettings.neNoAccess")
+      : neStatus.state === "error"
+      ? t("aiSettings.neUnavailable")
+      : t("aiSettings.neUnknown");
 
   return (
     <Dialog
@@ -58,48 +111,168 @@ export const MagicSettings = ({
       autofocus={false}
     >
       <Paragraph>{t("aiSettings.intro")}</Paragraph>
-      <Paragraph>
-        {t("aiSettings.accountStart")}{" "}
-        <a
-          href="https://platform.deepseek.com/"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {t("aiSettings.accountLink")}
-        </a>
-        {t("aiSettings.accountMiddle")}{" "}
-        <a
-          href="https://platform.deepseek.com/api_keys"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {t("aiSettings.keyLink")}
-        </a>
-        {t("aiSettings.accountEnd")}
-      </Paragraph>
-      <Paragraph>{t("aiSettings.privacy")}</Paragraph>
-      <TextField
-        isRedacted
-        value={keyInputValue}
-        placeholder={t("aiSettings.keyPlaceholder")}
-        label={t("aiSettings.keyLabel")}
-        onChange={(value) => {
-          setKeyInputValue(value);
-          // persist as the user types so the key survives a reload
-          onChange(value.trim());
-        }}
-        selectOnRender
-        onKeyDown={(event) => event.key === KEYS.ENTER && onConfirm()}
-      />
 
-      <FilledButton
-        className="MagicSettings__clear"
-        variant="outlined"
-        color="muted"
-        size="medium"
-        label={t("aiSettings.clearCached")}
-        onClick={onClear}
-      />
+      <div className="MagicSettings__modes" role="radiogroup">
+        {(
+          [
+            ["ne", t("aiSettings.modeNe")],
+            ["custom", t("aiSettings.modeCustom")],
+            ["off", t("aiSettings.modeOff")],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            className={
+              mode === value
+                ? "MagicSettings__mode MagicSettings__mode--active"
+                : "MagicSettings__mode"
+            }
+            onClick={() => onChangeMode(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "ne" ? (
+        <div className="MagicSettings__section">
+          <Paragraph>{t("aiSettings.neIntro")}</Paragraph>
+          <div className="MagicSettings__status">
+            <span
+              className={
+                neStatus.state === "ok"
+                  ? "MagicSettings__dot MagicSettings__dot--ok"
+                  : "MagicSettings__dot"
+              }
+            />
+            <span>{neDetail}</span>
+          </div>
+          {neStatus.models?.length ? (
+            <>
+              <label className="MagicSettings__label" htmlFor="ai-ne-model">
+                {t("aiSettings.modelLabel")}
+              </label>
+              <select
+                id="ai-ne-model"
+                className="MagicSettings__select"
+                value={neModel || neStatus.models[0]}
+                onChange={(event) => onChangeNeModel(event.target.value)}
+              >
+                {neStatus.models.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
+
+          {typeof neStatus.remaining === "number" ? (
+            <div className="MagicSettings__quota">
+              <span>
+                {t("aiSettings.neBalance", {
+                  remaining: neStatus.remaining.toLocaleString(),
+                })}
+              </span>
+              {typeof neStatus.todayTokens === "number" ? (
+                <span>
+                  {t("aiSettings.neToday", {
+                    tokens: neStatus.todayTokens.toLocaleString(),
+                  })}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="MagicSettings__row">
+            <FilledButton
+              size="medium"
+              variant="outlined"
+              color="muted"
+              label={
+                neStatus.state === "checking"
+                  ? t("aiSettings.neChecking")
+                  : t("aiSettings.neCheck")
+              }
+              onClick={onCheckNe}
+            />
+          </div>
+          <Paragraph>{t("aiSettings.neHint")}</Paragraph>
+        </div>
+      ) : null}
+
+      {mode === "custom" ? (
+        <div className="MagicSettings__section">
+          <Paragraph>{t("aiSettings.customIntro")}</Paragraph>
+
+          <label className="MagicSettings__label" htmlFor="ai-preset">
+            {t("aiSettings.presetLabel")}
+          </label>
+          <select
+            id="ai-preset"
+            className="MagicSettings__select"
+            value={custom.preset || "custom"}
+            onChange={(event) => onChangeCustom({ preset: event.target.value })}
+          >
+            {presets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+
+          <TextField
+            value={custom.baseUrl}
+            label={t("aiSettings.baseUrlLabel")}
+            placeholder={t("aiSettings.baseUrlPlaceholder")}
+            onChange={(value) => onChangeCustom({ baseUrl: value })}
+          />
+          <TextField
+            value={custom.model}
+            label={t("aiSettings.modelLabel")}
+            placeholder={t("aiSettings.modelPlaceholder")}
+            onChange={(value) => onChangeCustom({ model: value })}
+          />
+          <TextField
+            isRedacted={!showKey}
+            value={custom.apiKey}
+            placeholder={t("aiSettings.keyPlaceholder")}
+            label={t("aiSettings.keyLabel")}
+            onChange={(value) => onChangeCustom({ apiKey: value })}
+            onKeyDown={(event) => event.key === KEYS.ENTER && onConfirm()}
+          />
+          <div className="MagicSettings__row">
+            <FilledButton
+              className="MagicSettings__clear"
+              variant="outlined"
+              color="muted"
+              size="medium"
+              label={
+                showKey ? t("aiSettings.hideKey") : t("aiSettings.showKey")
+              }
+              onClick={() => setShowKey((value) => !value)}
+            />
+            <FilledButton
+              className="MagicSettings__clear"
+              variant="outlined"
+              color="muted"
+              size="medium"
+              label={t("aiSettings.clearCached")}
+              onClick={onClearKey}
+            />
+          </div>
+          <Paragraph>{t("aiSettings.privacy")}</Paragraph>
+        </div>
+      ) : null}
+
+      {mode === "off" ? (
+        <div className="MagicSettings__section">
+          <Paragraph>{t("aiSettings.offIntro")}</Paragraph>
+        </div>
+      ) : null}
 
       <Paragraph>{t("aiSettings.capabilities")}</Paragraph>
 

@@ -19,7 +19,11 @@ import {
   savePanelWidth,
 } from "../agent/panelWidth";
 import { useAgent } from "../agent/useAgent";
-import { AI_KEY_CHANGED_EVENT, getAiApiKey, getAiModel } from "../runtimeEnv";
+import {
+  AI_CONFIG_CHANGED_EVENT,
+  describeAiModel,
+  isAiConfigured,
+} from "../aiConfig";
 
 import "./AgentPanel.scss";
 
@@ -423,7 +427,7 @@ export const AgentPanel = ({
   const [showHistory, setShowHistory] = useState(false);
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
   const [resizing, setResizing] = useState(false);
-  const [configured, setConfigured] = useState(() => Boolean(getAiApiKey()));
+  const [configured, setConfigured] = useState(() => isAiConfigured());
   const [elementCount, setElementCount] = useState(
     () => excalidrawAPI?.getSceneElements().length ?? 0,
   );
@@ -467,21 +471,21 @@ export const AgentPanel = ({
     if (!open) {
       return;
     }
-    const refresh = () => setConfigured(Boolean(getAiApiKey()));
+    const refresh = () => setConfigured(isAiConfigured());
     refresh();
     const onStorage = (event: StorageEvent) => {
-      if (!event.key || /api-key|excalidraw-agent/.test(event.key)) {
+      if (!event.key || /ai-config|api-key|excalidraw-agent/.test(event.key)) {
         refresh();
       }
     };
     const onKeyChanged = () => refresh();
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", refresh);
-    window.addEventListener(AI_KEY_CHANGED_EVENT, onKeyChanged);
+    window.addEventListener(AI_CONFIG_CHANGED_EVENT, onKeyChanged);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("focus", refresh);
-      window.removeEventListener(AI_KEY_CHANGED_EVENT, onKeyChanged);
+      window.removeEventListener(AI_CONFIG_CHANGED_EVENT, onKeyChanged);
     };
   }, [open, appState.openDialog]);
 
@@ -697,7 +701,7 @@ export const AgentPanel = ({
           <div className="agent-panel__setup-body">{t("agent.setupBody")}</div>
           <div className="agent-panel__setup-foot">
             <span className="agent-panel__setup-meta">
-              {t("agent.setupModel", { model: getAiModel() })}
+              {t("agent.setupModel", { model: describeAiModel() })}
             </span>
             <button
               type="button"

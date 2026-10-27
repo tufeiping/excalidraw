@@ -2,17 +2,14 @@ import { parseSSEStream } from "@excalidraw/excalidraw";
 
 import { t } from "@excalidraw/excalidraw/i18n";
 
-import { getAiApiKey, getAiBackendUrl, getAiModel } from "../runtimeEnv";
+import { getAiMode, normalizeBaseUrl, readAiConfig } from "../aiConfig";
+
+import { AgentRequestError } from "./errors";
+import { invalidateNeSession, resolveNeTarget } from "./neClient";
 
 import type { ChatMessage, ChatResult, ToolCall, ToolDef } from "./types";
 
-/** Raised for any provider/transport failure; `status` mirrors HTTP status. */
-export class AgentRequestError extends Error {
-  constructor(message: string, readonly status?: number) {
-    super(message);
-    this.name = "AgentRequestError";
-  }
-}
+export { AgentRequestError };
 
 type WireToolCall = {
   index?: number;
@@ -144,19 +141,20 @@ export const chatCompletion = async ({
   temperature,
   retries = 1,
 }: ChatRequest): Promise<ChatResult> => {
-  const apiKey = getAiApiKey();
-  if (!apiKey) {
-    throw new AgentRequestError(t("agent.errorMissingKey"), 401);
+  const mode = getAiMode();
+  if (mode === "off") {
+    throw new AgentRequestError(t("agent.errorDisabled"), 400);
   }
 
-  const url = `${getAiBackendUrl()}/chat/completions`;
+  let target = await resolveTarget(mode);
 
   for (let attempt = 0; ; attempt++) {
     let emitted = false;
     try {
       return await requestOnce({
-        url,
-        apiKey,
+        url: target.url,
+        headers: target.headers,
+        model: target.model,
         messages,
         tools,
         signal,
@@ -171,6 +169,18 @@ export const chatCompletion = async ({
         },
       });
     } catch (error) {
+      // The relay answers 401 when the FlyLaTeX session died mid-flight. Drop
+      // the cached probe and try once more before bothering the user.
+      if (
+        mode === "ne" &&
+        error instanceof AgentRequestError &&
+        error.status === 401 &&
+        attempt === 0
+      ) {
+        invalidateNeSession();
+        target = await resolveTarget(mode);
+        continue;
+      }
       const retryable =
         !signal?.aborted &&
         !emitted &&
@@ -186,9 +196,58 @@ export const chatCompletion = async ({
   }
 };
 
+type AiTarget = {
+  url: string;
+  headers: Record<string, string>;
+  model: string;
+};
+
+/**
+ * Resolves "who answers this request" from the stored config:
+ * the deployment relay (session cookie, nothing secret in the browser) or a
+ * user-supplied OpenAI-compatible endpoint with the user's own key.
+ */
+const resolveTarget = async (
+  mode: ReturnType<typeof getAiMode>,
+): Promise<AiTarget> => {
+  if (mode === "ne") {
+    const config = readAiConfig();
+    const notLoggedIn = t("agent.errorNeNotLoggedIn");
+    const target = await resolveNeTarget(config.ne.model, notLoggedIn);
+    return {
+      url: target.url,
+      headers: target.headers,
+      model: target.model || config.ne.model,
+    };
+  }
+
+  const { custom } = readAiConfig();
+  const apiKey = custom.apiKey.trim();
+  if (!apiKey) {
+    throw new AgentRequestError(t("agent.errorMissingKey"), 401);
+  }
+  const baseUrl = normalizeBaseUrl(custom.baseUrl);
+  if (!baseUrl) {
+    throw new AgentRequestError(t("agent.errorMissingBaseUrl"), 400);
+  }
+  const model = custom.model.trim();
+  if (!model) {
+    throw new AgentRequestError(t("agent.errorMissingModel"), 400);
+  }
+  return {
+    url: `${baseUrl}/chat/completions`,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    model,
+  };
+};
+
 type RequestOnceOptions = {
   url: string;
-  apiKey: string;
+  headers: Record<string, string>;
+  model: string;
   messages: ChatMessage[];
   tools?: ToolDef[];
   signal?: AbortSignal;
@@ -199,7 +258,8 @@ type RequestOnceOptions = {
 
 const requestOnce = async ({
   url,
-  apiKey,
+  headers,
+  model,
   messages,
   tools,
   signal,
@@ -213,11 +273,11 @@ const requestOnce = async ({
       method: "POST",
       headers: {
         Accept: "text/event-stream",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        ...headers,
       },
+      credentials: "same-origin",
       body: JSON.stringify({
-        model: getAiModel(),
+        model,
         stream: true,
         messages: toWireMessages(messages),
         ...(tools?.length

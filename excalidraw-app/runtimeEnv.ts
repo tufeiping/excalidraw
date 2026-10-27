@@ -81,64 +81,8 @@ export const getBackendPostUrl = (): string => {
   return import.meta.env.VITE_APP_BACKEND_V2_POST_URL;
 };
 
-export type AiProvider = "excalidraw" | "deepseek";
-
-/** localStorage key holding the user-provided API key (set from AI settings) */
-export const AI_API_KEY_STORAGE_KEY = "excalidraw-oai-api-key";
-
 /**
- * Which AI backend protocol to speak. DeepSeek (and compatible endpoints) are
- * called directly from the browser; `excalidraw` talks to an excalidraw AI
- * service (https://github.com/excalidraw/excalidraw-room style backend).
+ * AI configuration now lives in `aiConfig.ts`. What remains here is the
+ * deployment-level defaults (`aiMode` / `aiBackend` / `aiModel`) that module
+ * reads from `window.__EXCALIDRAW_ENV__` and `import.meta.env`.
  */
-export const getAiProvider = (): AiProvider =>
-  (trim(getRuntimeEnv().aiProvider) ??
-    trim(import.meta.env.VITE_APP_AI_PROVIDER)) === "deepseek"
-    ? "deepseek"
-    : "excalidraw";
-
-/** AI backend base URL without trailing slash */
-export const getAiBackendUrl = (): string => {
-  const url =
-    trim(getRuntimeEnv().aiBackend) ??
-    trim(import.meta.env.VITE_APP_AI_BACKEND) ??
-    "https://api.deepseek.com";
-  return url.replace(/\/+$/, "");
-};
-
-/** Model used by OpenAI-compatible providers */
-export const getAiModel = (): string =>
-  trim(getRuntimeEnv().aiModel) ??
-  trim(import.meta.env.VITE_APP_AI_MODEL) ??
-  "deepseek-chat";
-
-/**
- * API key for OpenAI-compatible providers. A key entered by the user in AI
- * settings wins; a key injected by the deployment (`EXCALIDRAW_AI_API_KEY`) is
- * used as a shared fallback.
- */
-export const getAiApiKey = (): string | undefined =>
-  trim(
-    typeof window !== "undefined"
-      ? window.localStorage.getItem(AI_API_KEY_STORAGE_KEY) ?? undefined
-      : undefined,
-  ) ?? trim(getRuntimeEnv().aiApiKey);
-
-/** fired whenever the key changes, so open UI can re-check its configuration */
-export const AI_KEY_CHANGED_EVENT = "excalidraw-ai-key-changed";
-
-export const setAiApiKey = (key: string | undefined) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  if (trim(key)) {
-    window.localStorage.setItem(AI_API_KEY_STORAGE_KEY, key as string);
-  } else {
-    window.localStorage.removeItem(AI_API_KEY_STORAGE_KEY);
-  }
-  window.dispatchEvent(new Event(AI_KEY_CHANGED_EVENT));
-};
-
-/** True when a client-side key is required but missing */
-export const isAiApiKeyMissing = (): boolean =>
-  getAiProvider() === "deepseek" && !getAiApiKey();

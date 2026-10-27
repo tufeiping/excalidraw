@@ -1,8 +1,39 @@
 import { t } from "@excalidraw/excalidraw/i18n";
 
+import { AI_CONFIG_STORAGE_KEY } from "../aiConfig";
+
+import { invalidateNeSession } from "./neClient";
 import { AgentRequestError, chatCompletion } from "./provider";
 
 import type { ChatMessage } from "./types";
+
+const CUSTOM_CONFIG = {
+  mode: "custom",
+  custom: {
+    preset: "deepseek",
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-chat",
+    apiKey: "test-key",
+  },
+  ne: { model: "" },
+};
+
+const NE_CONFIG = {
+  mode: "ne",
+  custom: { preset: "custom", baseUrl: "", model: "", apiKey: "" },
+  ne: { model: "" },
+};
+
+const useConfig = (config: unknown) =>
+  window.localStorage.setItem(AI_CONFIG_STORAGE_KEY, JSON.stringify(config));
+
+const sessionPayload = {
+  ok: true,
+  user: { sub: "u_1", name: "涂飞平" },
+  models: ["qwen3.5"],
+  defaultModel: "qwen3.5",
+  csrfToken: "csrf-1",
+};
 
 const sseResponse = (chunks: string[]) =>
   new Response(
@@ -29,7 +60,8 @@ describe("chatCompletion", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    window.localStorage.setItem("excalidraw-oai-api-key", "test-key");
+    useConfig(CUSTOM_CONFIG);
+    invalidateNeSession();
   });
 
   afterEach(() => {
@@ -135,7 +167,10 @@ describe("chatCompletion", () => {
   });
 
   it("explains missing keys instead of calling the API", async () => {
-    window.localStorage.clear();
+    useConfig({
+      ...CUSTOM_CONFIG,
+      custom: { ...CUSTOM_CONFIG.custom, apiKey: "" },
+    });
     global.fetch = vi.fn() as unknown as typeof fetch;
 
     await expect(chatCompletion({ messages: history })).rejects.toThrow(
@@ -194,5 +229,96 @@ describe("chatCompletion", () => {
       chatCompletion({ messages: history, retries: 3 }),
     ).rejects.toBeInstanceOf(AgentRequestError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes to the deployment relay with a CSRF token and no key", async () => {
+    useConfig(NE_CONFIG);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(sessionPayload), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        sseResponse([delta({ content: "好的" }), "data: [DONE]\n\n"]),
+      );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await chatCompletion({ messages: history });
+
+    expect(result.content).toBe("好的");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const [sessionUrl] = fetchMock.mock.calls[0];
+    expect(String(sessionUrl)).toBe("/api/llm/session");
+
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(String(url)).toBe("/api/llm/v1/chat/completions");
+    expect(init.headers.Authorization).toBeUndefined();
+    expect(init.headers["X-CSRF-Token"]).toBe("csrf-1");
+    expect(JSON.parse(init.body).model).toBe("qwen3.5");
+  });
+
+  it("pins the model the user picked for the relay", async () => {
+    useConfig({ ...NE_CONFIG, ne: { model: "ne-scientific" } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(sessionPayload), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        sseResponse([delta({ content: "ok" }), "data: [DONE]\n\n"]),
+      );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await chatCompletion({ messages: history });
+
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).model).toBe(
+      "ne-scientific",
+    );
+  });
+
+  it("tells the user to sign in when the relay has no session", async () => {
+    useConfig(NE_CONFIG);
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, reason: "not_logged_in" }), {
+        status: 401,
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(chatCompletion({ messages: history })).rejects.toThrow(
+      t("agent.errorNeNotLoggedIn"),
+    );
+  });
+
+  it("refuses to call anything when the assistant is switched off", async () => {
+    useConfig({ ...NE_CONFIG, mode: "off" });
+    global.fetch = vi.fn() as unknown as typeof fetch;
+
+    await expect(chatCompletion({ messages: history })).rejects.toThrow(
+      t("agent.errorDisabled"),
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("retries once with a fresh relay session when the cached one expired", async () => {
+    useConfig(NE_CONFIG);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(sessionPayload), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(sessionPayload), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        sseResponse([delta({ content: "重连成功" }), "data: [DONE]\n\n"]),
+      );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await chatCompletion({ messages: history });
+
+    expect(result.content).toBe("重连成功");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });

@@ -15,9 +15,12 @@ declare global {
       backendGetUrl?: string;
       backendPostUrl?: string;
       aiProvider?: string;
+      aiMode?: string;
       aiBackend?: string;
       aiModel?: string;
       aiApiKey?: string;
+      /** same-origin base of the deployment's LLM relay, default `/api/llm` */
+      neBaseUrl?: string;
     };
   }
 }

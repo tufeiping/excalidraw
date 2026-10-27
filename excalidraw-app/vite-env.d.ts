@@ -17,6 +17,10 @@ interface ImportMetaEnv {
   // `excalidraw` (default) or `deepseek` (OpenAI-compatible, browser-side key)
   VITE_APP_AI_PROVIDER: string;
   VITE_APP_AI_MODEL: string;
+  // `ne` (deployment relay, default) | `custom` (own OpenAI-compatible key) | `off`
+  VITE_APP_AI_MODE: string;
+  // base of the deployment's LLM relay, default `/api/llm`
+  VITE_APP_NE_LLM_BASE_URL: string;
 
   VITE_APP_FIREBASE_CONFIG: string;
 

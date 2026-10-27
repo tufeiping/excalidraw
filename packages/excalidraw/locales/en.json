@@ -787,7 +787,7 @@
   "agent": {
     "title": "AI assistant",
     "setupTitle": "LLM service not configured",
-    "setupBody": "Add an API key to start using the assistant. The key is stored only in this browser.",
+    "setupBody": "Choose how the assistant gets its brain: the NE quota of this deployment, or your own LLM service. Nothing is sent anywhere until you ask the assistant to do something.",
     "setupModel": "Model: {{model}}",
     "badgeAi": "AI",
     "badgeYou": "YOU",
@@ -853,7 +853,11 @@
     "errorNoDiagram": "The AI returned no diagram — adjust the prompt and try again",
     "embedErrorTitle": "Error",
     "embedErrorMessage": "Generation failed — check that the API key is valid",
-    "embedErrorInterrupted": "Generation was interrupted"
+    "embedErrorInterrupted": "Generation was interrupted",
+    "errorNeNotLoggedIn": "Not signed in to FlyLaTeX. Open AI settings and either sign in, or switch to your own LLM service.",
+    "errorDisabled": "The AI assistant is turned off. Enable it in AI settings.",
+    "errorMissingBaseUrl": "Missing base URL. Add one in AI settings.",
+    "errorMissingModel": "Missing model name. Add one in AI settings."
   },
   "aiSettings": {
     "title": "AI assistant settings",
@@ -868,6 +872,29 @@
     "clearCached": "Clear the cached API key",
     "capabilities": "With a key in place, open the AI assistant panel from the menu and ask for changes in natural language — it can also draw a whole diagram from a Mermaid description. “Mermaid to Excalidraw” in the toolbar needs no key: it converts locally in your browser.",
     "confirm": "Done",
-    "accountEnd": "."
+    "accountEnd": ".",
+    "modeNe": "NE account (this deployment)",
+    "modeCustom": "Own LLM service",
+    "modeOff": "Off",
+    "neIntro": "Use the NE quota that comes with your FlyLaTeX account. No key to paste: the whiteboard asks this deployment's relay for a token, and the relay keeps it server-side.",
+    "neUnknown": "Not checked yet.",
+    "neChecking": "Checking…",
+    "neOk": "Connected as {{account}} · model {{model}}",
+    "neCheck": "Check connection",
+    "neNotLoggedIn": "No FlyLaTeX session in this browser — sign in to FlyLaTeX in another tab, then check again. You can also use your own LLM service instead.",
+    "neNoAccess": "This account has no LLM access. Contact your administrator, or switch to your own LLM service.",
+    "neUnavailable": "The relay is unreachable right now. You can retry later, or use your own LLM service instead.",
+    "neHint": "Usage is deducted from your own NE account; the key never reaches this page.",
+    "customIntro": "Point the assistant at any OpenAI-compatible endpoint. Everything below stays in this browser.",
+    "presetLabel": "Service",
+    "baseUrlLabel": "Base URL",
+    "baseUrlPlaceholder": "https://api.deepseek.com/v1",
+    "modelLabel": "Model",
+    "modelPlaceholder": "deepseek-chat",
+    "showKey": "Show key",
+    "hideKey": "Hide key",
+    "offIntro": "The assistant is disabled. Turn it back on whenever you need it.",
+    "neBalance": "Remaining NE quota: {{remaining}}",
+    "neToday": "Today: {{tokens}} tokens"
   }
 }
