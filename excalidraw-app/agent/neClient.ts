@@ -94,6 +94,10 @@ const KNOWN_REASONS = [
   "ne_not_linked",
   "reauth_required",
   "no_llm_access",
+  // the relay holds a token but cannot read its store; not the user's problem
+  "token_store_unavailable",
+  // the NE gateway refused this account's credential: NE LLM not provisioned
+  "ne_credential_rejected",
 ] as const;
 
 const parseReason = (payload: any): NeSession & { ok: false } =>
@@ -102,6 +106,7 @@ const parseReason = (payload: any): NeSession & { ok: false } =>
     reason: (KNOWN_REASONS as readonly string[]).includes(payload?.reason)
       ? payload.reason
       : "unavailable",
+    diagnostics: payload?.diagnostics ?? undefined,
   } as NeSession & { ok: false });
 
 const parseSession = (payload: any): NeSession => {

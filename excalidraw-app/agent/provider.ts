@@ -22,8 +22,11 @@ const neFailureMessage = (reason: string): string => {
   if (reason === "reauth_required") {
     return t("agent.errorNeReauth");
   }
-  if (reason === "no_llm_access") {
+  if (reason === "no_llm_access" || reason === "ne_credential_rejected") {
     return t("agent.errorNeNoAccess");
+  }
+  if (reason === "token_store_unavailable") {
+    return t("agent.errorNeTokenStore");
   }
   return t("agent.errorNeNotLoggedIn");
 };
