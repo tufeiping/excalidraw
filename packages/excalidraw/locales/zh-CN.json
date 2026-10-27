@@ -852,7 +852,10 @@
     "errorNeNotLoggedIn": "未登录 FlyLaTeX。请在 AI 设置里登录，或改用自备 LLM 服务。",
     "errorDisabled": "AI 助手已关闭，请在 AI 设置里开启。",
     "errorMissingBaseUrl": "缺少 Base URL，请在 AI 设置里填写。",
-    "errorMissingModel": "缺少模型名称，请在 AI 设置里填写。"
+    "errorMissingModel": "缺少模型名称，请在 AI 设置里填写。",
+    "errorNeNotLinked": "当前 FlyLaTeX 账号没有 NE 令牌——它不是通过 NE 登录的。请用 NE 账号登录一次，或在 AI 设置里改用自备 LLM 服务。",
+    "errorNeReauth": "NE 登录状态已失效，请在 FlyLaTeX 侧重新用 NE 账号登录，或在 AI 设置里改用自备 LLM 服务。",
+    "errorNeNoAccess": "该 NE 账号没有助手使用权限，请联系管理员，或在 AI 设置里改用自备 LLM 服务。"
   },
   "aiSettings": {
     "title": "AI 助手设置",
@@ -890,6 +893,8 @@
     "hideKey": "隐藏密钥",
     "offIntro": "AI 助手已关闭，需要时可以重新打开。",
     "neBalance": "NE 剩余额度：{{remaining}}",
-    "neToday": "今日已用：{{tokens}} tokens"
+    "neToday": "今日已用：{{tokens}} tokens",
+    "neNotLinked": "当前 FlyLaTeX 账号没有 NE 令牌——它不是通过 NE 登录的。请用 NE 账号（邮箱或手机号）登录一次后再检测，或改用自备 LLM 服务。",
+    "neReauth": "NE 登录状态已失效，请在 FlyLaTeX 侧重新用 NE 账号登录后再检测，或改用自备 LLM 服务。"
   }
 }

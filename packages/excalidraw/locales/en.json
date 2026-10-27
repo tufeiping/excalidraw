@@ -857,7 +857,10 @@
     "errorNeNotLoggedIn": "Not signed in to FlyLaTeX. Open AI settings and either sign in, or switch to your own LLM service.",
     "errorDisabled": "The AI assistant is turned off. Enable it in AI settings.",
     "errorMissingBaseUrl": "Missing base URL. Add one in AI settings.",
-    "errorMissingModel": "Missing model name. Add one in AI settings."
+    "errorMissingModel": "Missing model name. Add one in AI settings.",
+    "errorNeNotLinked": "This FlyLaTeX account has no NE token — it was not signed in through NE. Sign in with your NE account once, or switch to your own LLM service in AI settings.",
+    "errorNeReauth": "Your NE session expired. Sign in through NE again on FlyLaTeX, or switch to your own LLM service in AI settings.",
+    "errorNeNoAccess": "This NE account is not allowed to use the assistant. Ask an administrator, or switch to your own LLM service in AI settings."
   },
   "aiSettings": {
     "title": "AI assistant settings",
@@ -895,6 +898,8 @@
     "hideKey": "Hide key",
     "offIntro": "The assistant is disabled. Turn it back on whenever you need it.",
     "neBalance": "Remaining NE quota: {{remaining}}",
-    "neToday": "Today: {{tokens}} tokens"
+    "neToday": "Today: {{tokens}} tokens",
+    "neNotLinked": "This FlyLaTeX account has no NE token: it was not signed in through NE. Sign in with your NE account (email or phone) once, then check again — or switch to your own LLM service.",
+    "neReauth": "Your NE session has expired. Sign in through NE again on FlyLaTeX, then check again — or switch to your own LLM service."
   }
 }

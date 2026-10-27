@@ -30,7 +30,12 @@ export type AiSettingsNeStatus = {
   /** account label (`nick_name` / email) when the relay answered */
   account?: string;
   /** one of the relay's failure reasons */
-  reason?: "not_logged_in" | "unavailable" | "no_llm_access";
+  reason?:
+    | "not_logged_in"
+    | "ne_not_linked"
+    | "reauth_required"
+    | "unavailable"
+    | "no_llm_access";
   /** models this account may use, in the relay's order */
   models?: string[];
   /** remaining NE quota, as reported by the gateway (same number as the
@@ -97,6 +102,10 @@ export const MagicSettings = ({
       ? t("aiSettings.neChecking")
       : neStatus.reason === "not_logged_in"
       ? t("aiSettings.neNotLoggedIn")
+      : neStatus.reason === "ne_not_linked"
+      ? t("aiSettings.neNotLinked")
+      : neStatus.reason === "reauth_required"
+      ? t("aiSettings.neReauth")
       : neStatus.reason === "no_llm_access"
       ? t("aiSettings.neNoAccess")
       : neStatus.state === "error"

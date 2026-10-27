@@ -11,6 +11,23 @@ import type { ChatMessage, ChatResult, ToolCall, ToolDef } from "./types";
 
 export { AgentRequestError };
 
+/**
+ * Each relay refusal needs different advice: "sign in" is useless when the
+ * account is signed in but was never linked to NE, and vice versa.
+ */
+const neFailureMessage = (reason: string): string => {
+  if (reason === "ne_not_linked") {
+    return t("agent.errorNeNotLinked");
+  }
+  if (reason === "reauth_required") {
+    return t("agent.errorNeReauth");
+  }
+  if (reason === "no_llm_access") {
+    return t("agent.errorNeNoAccess");
+  }
+  return t("agent.errorNeNotLoggedIn");
+};
+
 type WireToolCall = {
   index?: number;
   id?: string;
@@ -212,8 +229,7 @@ const resolveTarget = async (
 ): Promise<AiTarget> => {
   if (mode === "ne") {
     const config = readAiConfig();
-    const notLoggedIn = t("agent.errorNeNotLoggedIn");
-    const target = await resolveNeTarget(config.ne.model, notLoggedIn);
+    const target = await resolveNeTarget(config.ne.model, neFailureMessage);
     return {
       url: target.url,
       headers: target.headers,
