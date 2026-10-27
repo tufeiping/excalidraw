@@ -206,8 +206,9 @@ export class AppClipboard {
 
     // ------------------- Successful Mermaid -------------------
     if (!isPlainPaste && isMaybeMermaidDefinition(data.text)) {
-      const api = await import("@excalidraw/mermaid-to-excalidraw");
       try {
+        // if this fails to load (e.g. offline), fall through and paste as text
+        const api = await import("@excalidraw/mermaid-to-excalidraw");
         const { elements: skeletonElements, files = {} } =
           await api.parseMermaidToExcalidraw(data.text);
 
@@ -237,7 +238,14 @@ export class AppClipboard {
     const nonEmptyLines = normalizeEOL(data.text)
       .split(/\n+/)
       .map((s) => s.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      // some embed codes (e.g. Instagram) put the provider's loader <script>
+      // on a separate line, which isn't an embed by itself
+      .filter(
+        (s) =>
+          !/^<script\b[^>]*>\s*<\/script\b[^>]*>\s*$/i.test(s) ||
+          maybeParseEmbedSrc(s) !== s,
+      );
     const embbeddableUrls = nonEmptyLines
       .map((str) => maybeParseEmbedSrc(str))
       .filter(
