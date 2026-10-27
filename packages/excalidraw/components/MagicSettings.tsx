@@ -135,8 +135,24 @@ export const MagicSettings = ({
   return (
     <Dialog
       onCloseRequest={onConfirm}
-      title={t("aiSettings.title")}
+      title={
+        <span className="MagicSettings__titleRow">
+          <span>{t("aiSettings.title")}</span>
+          <button
+            type="button"
+            className="MagicSettings__close"
+            onClick={onClose}
+            title={t("buttons.close")}
+            aria-label={t("buttons.close")}
+          >
+            ×
+          </button>
+        </span>
+      }
       className="MagicSettings"
+      // this dialog writes settings as you change them, so a stray click on the
+      // backdrop must not dismiss it: it is a modal, not a popover
+      closeOnClickOutside={false}
       autofocus={false}
     >
       <Paragraph>{t("aiSettings.intro")}</Paragraph>
@@ -305,12 +321,17 @@ export const MagicSettings = ({
 
       <Paragraph>{t("aiSettings.capabilities")}</Paragraph>
 
-      <FilledButton
-        className="MagicSettings__confirm"
-        size="large"
-        label={t("aiSettings.confirm")}
-        onClick={onConfirm}
-      />
+      <div className="MagicSettings__footer">
+        <FilledButton
+          className="MagicSettings__confirm"
+          size="large"
+          label={t("aiSettings.confirm")}
+          onClick={onConfirm}
+        />
+        <button type="button" className="MagicSettings__cancel" onClick={onClose}>
+          {t("buttons.close")}
+        </button>
+      </div>
     </Dialog>
   );
 };

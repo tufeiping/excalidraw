@@ -105,7 +105,9 @@ const errorMessage = (error: unknown) => {
  */
 const textFromHtml = (body: string) => {
   const pre = /<pre[^>]*>([\s\S]*?)<\/pre>/i.exec(body);
-  if (pre) return pre[1].replace(/<[^>]+>/g, "").trim();
+  if (pre) {
+    return pre[1].replace(/<[^>]+>/g, "").trim();
+  }
   const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body);
   return title ? title[1].replace(/<[^>]+>/g, "").trim() : "";
 };
