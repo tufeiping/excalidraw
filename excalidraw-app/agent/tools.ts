@@ -819,8 +819,99 @@ const insertDiagram: Tool = {
   },
 };
 
+/**
+ * "今天几号" is not a canvas question, but a diagram often needs a date
+ * ("排期从下周一开始"), and the model has no clock. Cheaper and more honest
+ * than asking the user to retype it.
+ */
+const currentDatetime: Tool = {
+  name: "get_current_datetime",
+  description:
+    "获取用户本机的当前日期与时间（含时区、星期），例如「今天是几号」「下周三是什么日期」" +
+    "「把日期写进图里」时先调用它。不要凭记忆猜日期。",
+  parameters: {
+    type: "object",
+    properties: {
+      timezone: {
+        type: "string",
+        description:
+          "IANA 时区名，如 Asia/Shanghai。不传则用用户浏览器的本地时区",
+      },
+    },
+    additionalProperties: false,
+  },
+  run: (args) => {
+    const now = new Date();
+    const fallbackZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const zone =
+      typeof args.timezone === "string" && args.timezone.trim()
+        ? args.timezone.trim()
+        : fallbackZone;
+
+    const format = (
+      options: Intl.DateTimeFormatOptions,
+      locale = "zh-CN",
+    ): string | null => {
+      try {
+        return new Intl.DateTimeFormat(locale, {
+          ...options,
+          timeZone: zone,
+        }).format(now);
+      } catch {
+        return null;
+      }
+    };
+
+    const date = format({
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const time = format({
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    const weekday = format({ weekday: "long" });
+    const isoDate = format(
+      { year: "numeric", month: "2-digit", day: "2-digit" },
+      "en-CA",
+    );
+
+    if (!date || !time) {
+      return {
+        content: `无法解析时区 ${zone}。可用的本地时区是 ${fallbackZone}；请改用该时区重试。`,
+        isError: true,
+      };
+    }
+
+    // weekday in English too: the model reasons about "next Wednesday" more
+    // reliably when it is not translating on the fly
+    const weekdayEn = format({ weekday: "long" }, "en-US");
+    const offsetMinutes = -now.getTimezoneOffset();
+
+    return {
+      content: [
+        `日期：${isoDate}（${weekday} / ${weekdayEn}）`,
+        `时间：${time}`,
+        `时区：${zone}`,
+        `ISO 8601：${now.toISOString()}`,
+        `UTC 偏移：UTC${offsetMinutes >= 0 ? "+" : "-"}${String(
+          Math.floor(Math.abs(offsetMinutes) / 60),
+        ).padStart(2, "0")}:${String(Math.abs(offsetMinutes) % 60).padStart(
+          2,
+          "0",
+        )}`,
+      ].join("\n"),
+    };
+  },
+};
+
 export const canvasTools: Tool[] = [
   readCanvas,
+  currentDatetime,
   writeCanvas,
   insertDiagram,
   readSelection,

@@ -489,4 +489,38 @@ describe("canvas tools", () => {
       expect(result.content).toMatch(/找不到选区/);
     });
   });
+
+  describe("get_current_datetime", () => {
+    it("answers in the requested timezone with a weekday", async () => {
+      const harness = createHarness([]);
+      const result = await harness.run("get_current_datetime", {
+        timezone: "Asia/Shanghai",
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content).toMatch(/日期：\d{4}-\d{2}-\d{2}（.+\/ .+）/);
+      expect(result.content).toMatch(/时间：\d{2}:\d{2}:\d{2}/);
+      expect(result.content).toContain("时区：Asia/Shanghai");
+      expect(result.content).toMatch(/ISO 8601：\d{4}-\d{2}-\d{2}T/);
+    });
+
+    it("falls back to the browser timezone when none is given", async () => {
+      const harness = createHarness([]);
+      const result = await harness.run("get_current_datetime");
+
+      expect(result.content).toContain(
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+      );
+    });
+
+    it("rejects an unknown timezone instead of returning the local time", async () => {
+      const harness = createHarness([]);
+      const result = await harness.run("get_current_datetime", {
+        timezone: "Mars/Olympus",
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toMatch(/无法解析时区/);
+    });
+  });
 });

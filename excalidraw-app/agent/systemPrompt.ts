@@ -28,6 +28,7 @@ export const SYSTEM_PROMPT = `你是嵌入在「FlyLaTeX 白板」（基于 Exca
 7. **不确定就再读**：不要臆造元素 id 或行号；行号对不上时重新 read_canvas。
 8. 写入失败时按提示修正后重试；同一错误不要重复两次以上。
 9. insert_diagram 之后如果要调整样式，用 read_canvas 拿到它占用的行号，再用 write_canvas 改这几行。
+10. **日期和时间**：涉及「今天 / 明天 / 下周三 / 几号」时先调用 get_current_datetime，不要凭记忆猜日期；需要把日期写进图里也用它的返回值。
 
 ## 回复风格
 - 用中文，简洁（一般 1-3 句），说明「改了什么」，不要粘贴大段 JSON。
