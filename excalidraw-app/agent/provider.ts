@@ -98,8 +98,21 @@ const errorMessage = (error: unknown) => {
   return typeof error === "string" ? error : t("agent.errorUnknownDetail");
 };
 
+/**
+ * A 404 from the router is an HTML error page. Showing that page inside the
+ * chat bubble ("请求失败（404）— <!DOCTYPE html>…") tells the user nothing and
+ * hides the one useful line in it, so pull out the text and drop the markup.
+ */
+const textFromHtml = (body: string) => {
+  const pre = /<pre[^>]*>([\s\S]*?)<\/pre>/i.exec(body);
+  if (pre) return pre[1].replace(/<[^>]+>/g, "").trim();
+  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body);
+  return title ? title[1].replace(/<[^>]+>/g, "").trim() : "";
+};
+
 const describeHttpError = (status: number, body: string) => {
-  let message = body;
+  const looksLikeHtml = /^\s*<(?:!doctype|html)/i.test(body);
+  let message = looksLikeHtml ? textFromHtml(body) : body;
   try {
     const parsed = JSON.parse(body);
     message =
@@ -107,7 +120,11 @@ const describeHttpError = (status: number, body: string) => {
       parsed?.message ??
       (typeof parsed?.error === "string" ? parsed.error : body);
   } catch {
-    // body was not JSON, keep it as is
+    // body was not JSON, keep the text (or the extracted HTML text)
+  }
+
+  if (status === 404 && (!message || looksLikeHtml)) {
+    return new AgentRequestError(t("agent.errorNotFound"), status);
   }
 
   const detail = message ? ` — ${message}` : "";

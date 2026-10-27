@@ -252,7 +252,7 @@ describe("chatCompletion", () => {
     expect(String(sessionUrl)).toBe("/api/llm/session");
 
     const [url, init] = fetchMock.mock.calls[1];
-    expect(String(url)).toBe("/api/llm/v1/chat/completions");
+    expect(String(url)).toBe("/api/llm/chat/completions");
     expect(init.headers.Authorization).toBeUndefined();
     expect(init.headers["X-CSRF-Token"]).toBe("csrf-1");
     expect(JSON.parse(init.body).model).toBe("qwen3.5");

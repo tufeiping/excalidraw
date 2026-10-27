@@ -862,7 +862,8 @@
     "errorNeReauth": "Your NE session expired. Sign in through NE again on FlyLaTeX, or switch to your own LLM service in AI settings.",
     "errorNeNoAccess": "This NE account is not allowed to use the assistant. Ask an administrator, or switch to your own LLM service in AI settings.",
     "errorNeTokenStore": "The relay could not read its NE token store (Redis or the token index). This is a server-side problem — try again in a minute.",
-    "errorNeCredentialRejected": "The NE gateway refused this account's credential: the NE LLM service is not enabled for it. Use a custom LLM service, or ask an administrator."
+    "errorNeCredentialRejected": "The NE gateway refused this account's credential: the NE LLM service is not enabled for it. Use a custom LLM service, or ask an administrator.",
+    "errorNotFound": "This endpoint does not exist (404). The server may be running an older build than the whiteboard — check that /api/llm/chat/completions is deployed."
   },
   "aiSettings": {
     "title": "AI assistant settings",

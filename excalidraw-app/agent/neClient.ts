@@ -195,7 +195,9 @@ export const resolveNeTarget = async (
     throw new AgentRequestError(messageFor(session.reason), 401);
   }
   return {
-    url: `${getNeBaseUrl()}/v1/chat/completions`,
+    // the relay serves `/api/llm/chat/completions`; `/api/llm/v1/…` is an
+    // OpenAI-SDK-shaped alias for third-party callers, not the client's path
+    url: `${getNeBaseUrl()}/chat/completions`,
     headers: {
       "Content-Type": "application/json",
       "X-CSRF-Token": session.csrfToken,
