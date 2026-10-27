@@ -6,8 +6,10 @@ import {
   createChat,
   deleteChat as deleteStoredChat,
   listChats,
+  historyFromItems,
   loadChat,
   nextItemId,
+  resendCut,
   saveChat,
   setActiveChatId,
 } from "./chatStore";
@@ -165,9 +167,12 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     [commitItems],
   );
 
-  const send = useCallback(
-    async (rawInput: string) => {
-      const input = rawInput.trim();
+  /**
+   * Runs one user turn against the current history. `send` appends the prompt
+   * first; `resend` has already truncated both transcripts back to it.
+   */
+  const runTurn = useCallback(
+    async (input: string) => {
       if (!api || !input || abortRef.current) {
         return;
       }
@@ -175,10 +180,6 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
       setError(null);
       setStatus("thinking");
       assistantRef.current = null;
-      commitItems((previous) => [
-        ...previous,
-        { id: nextItemId(), kind: "user", text: input, ts: Date.now() },
-      ]);
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -302,6 +303,79 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     ],
   );
 
+  const send = useCallback(
+    async (rawInput: string) => {
+      const input = rawInput.trim();
+      if (!api || !input || abortRef.current) {
+        return;
+      }
+      commitItems((previous) => [
+        ...previous,
+        { id: nextItemId(), kind: "user", text: input, ts: Date.now() },
+      ]);
+      await runTurn(input);
+    },
+    [api, commitItems, runTurn],
+  );
+
+  /**
+   * Re-send a prompt: drop its answer (and everything after it) from both the
+   * transcript and the provider history, then run the same turn again. Works
+   * for the newest prompt and for any older one, which is what "重发" means.
+   */
+  const resend = useCallback(
+    async (itemId: string) => {
+      if (!api || abortRef.current) {
+        return;
+      }
+      const cut = resendCut(itemsRef.current, historyRef.current, itemId);
+      if (!cut || !cut.text) {
+        return;
+      }
+      historyRef.current = historyRef.current.slice(0, cut.messageCount);
+      assistantRef.current = null;
+      commitItems((previous) => previous.slice(0, cut.itemCount));
+      await runTurn(cut.text);
+    },
+    [api, commitItems, runTurn],
+  );
+
+  /**
+   * Delete a row from the transcript.
+   *
+   * Deleting a prompt removes its whole turn (the answer means nothing without
+   * the question), and the provider history is rebuilt from what is left so a
+   * deleted message cannot keep influencing later answers.
+   */
+  const removeItem = useCallback(
+    (itemId: string) => {
+      if (abortRef.current) {
+        return;
+      }
+      const items = itemsRef.current;
+      const index = items.findIndex((item) => item.id === itemId);
+      if (index < 0) {
+        return;
+      }
+      const isPrompt = items[index].kind === "user";
+      const next: ChatItem[] = [];
+      for (let i = 0; i < items.length; i += 1) {
+        if (i === index) {
+          continue;
+        }
+        if (isPrompt && i > index && items[i].kind !== "user") {
+          continue;
+        }
+        next.push(items[i]);
+      }
+      assistantRef.current = null;
+      historyRef.current = historyFromItems(next);
+      commitItems(() => next);
+      flushPersist();
+    },
+    [commitItems, flushPersist],
+  );
+
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -389,6 +463,8 @@ export const useAgent = (api: ExcalidrawImperativeAPI | null) => {
     chats,
     activeChatId,
     send,
+    resend,
+    removeItem,
     stop,
     newChat,
     openChat,

@@ -418,6 +418,98 @@ const messageLength = (message: ChatMessage) => message.content?.length ?? 0;
  * rough character budget), always starting on a user message and never leaving
  * orphaned tool messages, which providers reject.
  */
+/**
+ * Rebuilds the provider history from what the panel still shows.
+ *
+ * The panel lets the user delete a message; if the history kept the deleted
+ * turn the model would answer as if it were still there, which is a silent
+ * lie. Rebuilding from the transcript is the only way the two stay equal.
+ * `notice` / `error` rows are UI-only and never reach the provider.
+ */
+export const historyFromItems = (items: ChatItem[]): ChatMessage[] => {
+  const messages: ChatMessage[] = [];
+  for (const item of items) {
+    switch (item.kind) {
+      case "user":
+        messages.push({ role: "user", content: item.text });
+        break;
+      case "assistant":
+        if (item.text.trim()) {
+          messages.push({ role: "assistant", content: item.text });
+        }
+        break;
+      case "tool": {
+        // pair the call with its result under the item id, which is unique and
+        // stable for as long as the item exists
+        if (item.status === "running") {
+          break;
+        }
+        messages.push({
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            { id: item.id, name: item.name, arguments: item.args || "{}" },
+          ],
+        });
+        messages.push({
+          role: "tool",
+          toolCallId: item.id,
+          name: item.name,
+          content: item.content ?? "",
+        });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  return messages;
+};
+
+/**
+ * Where a "resend this prompt" starts.
+ *
+ * The transcript (`items`) and the provider history (`messages`) are two
+ * representations of the same turns: the n-th user item is the n-th
+ * `role: "user"` message. Resending from an item means cutting both at that
+ * turn so the model does not see the answer we are throwing away.
+ *
+ * Returns `null` when the item is not a user prompt.
+ */
+export const resendCut = (
+  items: ChatItem[],
+  messages: ChatMessage[],
+  itemId: string,
+): { itemCount: number; messageCount: number; text: string } | null => {
+  const index = items.findIndex(
+    (item) => item.id === itemId && item.kind === "user",
+  );
+  if (index < 0) {
+    return null;
+  }
+  const item = items[index];
+  const ordinal = items
+    .slice(0, index + 1)
+    .filter((entry) => entry.kind === "user").length;
+  let seen = 0;
+  let messageCount = messages.length;
+  for (let i = 0; i < messages.length; i += 1) {
+    if (messages[i].role !== "user") {
+      continue;
+    }
+    seen += 1;
+    if (seen === ordinal) {
+      messageCount = i;
+      break;
+    }
+  }
+  return {
+    itemCount: index + 1,
+    messageCount,
+    text: item.kind === "user" ? item.text : "",
+  };
+};
+
 export const trimHistory = (
   messages: ChatMessage[],
   { maxPairs = 10, maxChars = 60_000 } = {},

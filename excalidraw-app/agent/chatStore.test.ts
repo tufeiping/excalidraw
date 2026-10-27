@@ -2,6 +2,7 @@ import {
   createChat,
   deleteChat,
   getActiveChatId,
+  historyFromItems,
   listChats,
   loadChat,
   nextItemId,
@@ -362,5 +363,58 @@ describe("chat storage", () => {
     );
     expect(listChats()).toEqual([]);
     expect(loadChat().items).toEqual([]);
+  });
+
+  it("rebuilds the history from the transcript after a deletion", () => {
+    const items = [
+      { id: "u1", kind: "user" as const, text: "画个流程图" },
+      { id: "a1", kind: "assistant" as const, text: "已插入" },
+      {
+        id: "t1",
+        kind: "tool" as const,
+        name: "read_canvas",
+        args: "{}",
+        status: "ok" as const,
+        content: "1: rect",
+      },
+      { id: "n1", kind: "notice" as const, text: "达到上限" },
+      { id: "u2", kind: "user" as const, text: "改成红色" },
+    ];
+
+    const history = historyFromItems(items);
+
+    expect(history).toEqual([
+      { role: "user", content: "画个流程图" },
+      { role: "assistant", content: "已插入" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "t1", name: "read_canvas", arguments: "{}" }],
+      },
+      {
+        role: "tool",
+        toolCallId: "t1",
+        name: "read_canvas",
+        content: "1: rect",
+      },
+      { role: "user", content: "改成红色" },
+    ]);
+    // notices are UI-only: the model must never see them
+    expect(
+      history.some((m) => "content" in m && /达到上限/.test(m.content)),
+    ).toBe(false);
+  });
+
+  it("drops a tool call that never finished from the history", () => {
+    const history = historyFromItems([
+      {
+        id: "t1",
+        kind: "tool",
+        name: "write_canvas",
+        args: "{}",
+        status: "running",
+      },
+    ]);
+    expect(history).toEqual([]);
   });
 });

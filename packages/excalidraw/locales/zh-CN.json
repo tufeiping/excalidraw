@@ -858,7 +858,18 @@
     "errorNeNoAccess": "该 NE 账号没有助手使用权限，请联系管理员，或在 AI 设置里改用自备 LLM 服务。",
     "errorNeTokenStore": "中转服务读不到 NE 令牌存储（Redis 或令牌索引异常）。这是服务端问题，稍后重试即可。",
     "errorNeCredentialRejected": "NE 网关拒绝了这个账号的凭据：该账号没有开通 NE LLM 服务。请改用自备服务，或联系管理员开通。",
-    "errorNotFound": "接口不存在（404）。可能服务端版本比白板旧——确认已部署 /api/llm/chat/completions。"
+    "errorNotFound": "接口不存在（404）。可能服务端版本比白板旧——确认已部署 /api/llm/chat/completions。",
+    "copy": "复制",
+    "copied": "已复制",
+    "resend": "重发",
+    "regenerate": "重新生成",
+    "retry": "重试",
+    "delete": "删除",
+    "deleteTitle": "删除这条消息？",
+    "deletePromptBody": "这个问题连同它的回答会从当前对话里移除，之后的回答也不会再看到它们。",
+    "deleteAnswerBody": "这条回答会从当前对话里移除，之后的回答也不会再看到它。",
+    "deleteConfirm": "删除",
+    "cancel": "取消"
   },
   "aiSettings": {
     "title": "AI 助手设置",

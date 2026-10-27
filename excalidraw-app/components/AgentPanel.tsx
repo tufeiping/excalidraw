@@ -227,21 +227,101 @@ const buildRows = (items: ChatItem[]): Row[] => {
   return rows;
 };
 
+/** clipboard.writeText needs a secure context; the fallback also covers http */
+const copyText = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to the selection-based copy
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(area);
+    return ok;
+  } catch {
+    return false;
+  }
+};
+
+const CopyButton = ({ text, t }: { text: string; t: T }) => {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="agent-msg__action"
+      onClick={async () => {
+        if (await copyText(text)) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1500);
+        }
+      }}
+    >
+      {copied ? t("agent.copied") : t("agent.copy")}
+    </button>
+  );
+};
+
 const MessageRow = ({
   item,
   lang,
   t,
+  resendId,
+  onResend,
+  resendLabel,
+  onDelete,
+  disabled,
 }: {
   item: Exclude<ChatItem, { kind: "tool" }>;
   lang: string;
   t: T;
+  /** the user prompt this turn belongs to; absent for prompts older than… */
+  resendId: string;
+  onResend: (itemId: string) => void;
+  resendLabel: string;
+  onDelete: (item: Exclude<ChatItem, { kind: "tool" }>) => void;
+  disabled: boolean;
 }) => {
+  const actions = (text: string) => (
+    <div className="agent-msg__actions">
+      <CopyButton text={text} t={t} />
+      {resendId && !disabled ? (
+        <button
+          type="button"
+          className="agent-msg__action"
+          onClick={() => onResend(resendId)}
+        >
+          {resendLabel}
+        </button>
+      ) : null}
+      {!disabled ? (
+        <button
+          type="button"
+          className="agent-msg__action agent-msg__action--danger"
+          onClick={() => onDelete(item)}
+        >
+          {t("agent.delete")}
+        </button>
+      ) : null}
+    </div>
+  );
   if (item.kind === "user") {
     return (
       <div className="agent-msg agent-msg--user">
         <MessageHead role="user" ts={item.ts} lang={lang} t={t} />
         <div className="agent-msg__content">
           <div className="agent-msg__body">{item.text}</div>
+          {actions(item.text)}
         </div>
       </div>
     );
@@ -260,6 +340,7 @@ const MessageRow = ({
             </details>
           ) : null}
           {showText ? <RichText text={item.text} /> : null}
+          {showText ? actions(item.text) : null}
         </div>
       </div>
     );
@@ -268,6 +349,7 @@ const MessageRow = ({
   return (
     <div className={`agent-msg agent-msg--${item.kind}`}>
       <div className="agent-msg__body">{item.text}</div>
+      {actions(item.text)}
     </div>
   );
 };
@@ -415,6 +497,8 @@ export const AgentPanel = ({
     chats,
     activeChatId,
     send,
+    resend,
+    removeItem,
     stop,
     newChat,
     openChat,
@@ -425,6 +509,11 @@ export const AgentPanel = ({
 
   const [draft, setDraft] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  // deleting a message cannot be undone, so it goes through a confirmation
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<Exclude<
+    ChatItem,
+    { kind: "tool" }
+  > | null>(null);
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
   const [resizing, setResizing] = useState(false);
   const [configured, setConfigured] = useState(() => isAiConfigured());
@@ -437,6 +526,8 @@ export const AgentPanel = ({
   const panelRef = useRef<HTMLElement | null>(null);
   const resizingRef = useRef(false);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  // the prompt each rendered answer belongs to, carried across the row mapping
+  const lastPromptRef = useRef<string>("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const stickToBottomRef = useRef(true);
 
@@ -762,18 +853,39 @@ export const AgentPanel = ({
               </ul>
             </div>
           ) : (
-            rows.map((row) =>
-              row.type === "steps" ? (
-                <StepsRow key={row.id} steps={row.steps} t={t} />
-              ) : (
+            rows.map((row) => {
+              if (row.type === "steps") {
+                return <StepsRow key={row.id} steps={row.steps} t={t} />;
+              }
+              // every answer belongs to the prompt above it: that is the turn
+              // "重新生成" / "重试" has to re-run
+              if (row.item.kind === "user") {
+                lastPromptRef.current = row.item.id;
+              }
+              const promptId = lastPromptRef.current;
+              const label =
+                row.item.kind === "user"
+                  ? t("agent.resend")
+                  : row.item.kind === "assistant"
+                  ? t("agent.regenerate")
+                  : t("agent.retry");
+              return (
                 <MessageRow
                   key={row.item.id}
                   item={row.item}
                   lang={langCode}
                   t={t}
+                  resendId={promptId}
+                  onResend={(itemId) => {
+                    stickToBottomRef.current = true;
+                    void resend(itemId);
+                  }}
+                  resendLabel={label}
+                  onDelete={setPendingDeleteItem}
+                  disabled={running}
                 />
-              ),
-            )
+              );
+            })
           )}
           {showIndicator ? (
             <div className="agent-msg agent-msg--notice">
@@ -811,6 +923,60 @@ export const AgentPanel = ({
               {t("agent.dismiss")}
             </button>
           )}
+        </div>
+      ) : null}
+
+      {pendingDeleteItem ? (
+        <div
+          className="agent-confirm__backdrop"
+          role="presentation"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setPendingDeleteItem(null);
+            }
+          }}
+        >
+          <div
+            className="agent-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="agent-confirm-title"
+          >
+            <div className="agent-confirm__title" id="agent-confirm-title">
+              {t("agent.deleteTitle")}
+            </div>
+            <div className="agent-confirm__body">
+              {pendingDeleteItem.kind === "user"
+                ? t("agent.deletePromptBody")
+                : t("agent.deleteAnswerBody")}
+            </div>
+            {pendingDeleteItem.text ? (
+              <div className="agent-confirm__quote">
+                {pendingDeleteItem.text.slice(0, 120)}
+                {pendingDeleteItem.text.length > 120 ? "…" : ""}
+              </div>
+            ) : null}
+            <div className="agent-confirm__actions">
+              <button
+                type="button"
+                className="agent-panel__button"
+                autoFocus
+                onClick={() => setPendingDeleteItem(null)}
+              >
+                {t("agent.cancel")}
+              </button>
+              <button
+                type="button"
+                className="agent-panel__button agent-panel__button--danger"
+                onClick={() => {
+                  removeItem(pendingDeleteItem.id);
+                  setPendingDeleteItem(null);
+                }}
+              >
+                {t("agent.deleteConfirm")}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
