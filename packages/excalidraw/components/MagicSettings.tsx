@@ -9,6 +9,7 @@ import { Dialog } from "./Dialog";
 import { FilledButton } from "./FilledButton";
 import { Paragraph } from "./Paragraph";
 import { TextField } from "./TextField";
+import { CloseIcon } from "./icons";
 
 import "./MagicSettings.scss";
 
@@ -145,7 +146,7 @@ export const MagicSettings = ({
             title={t("buttons.close")}
             aria-label={t("buttons.close")}
           >
-            ×
+            {CloseIcon}
           </button>
         </span>
       }
@@ -321,16 +322,20 @@ export const MagicSettings = ({
 
       <Paragraph>{t("aiSettings.capabilities")}</Paragraph>
 
+      {/* same component, same size for both: a 40px primary next to a 32px
+          hand-rolled secondary reads as a layout bug, not as hierarchy */}
       <div className="MagicSettings__footer">
         <FilledButton
-          className="MagicSettings__confirm"
-          size="large"
+          variant="outlined"
+          size="medium"
+          label={t("buttons.close")}
+          onClick={onClose}
+        />
+        <FilledButton
+          size="medium"
           label={t("aiSettings.confirm")}
           onClick={onConfirm}
         />
-        <button type="button" className="MagicSettings__cancel" onClick={onClose}>
-          {t("buttons.close")}
-        </button>
       </div>
     </Dialog>
   );
