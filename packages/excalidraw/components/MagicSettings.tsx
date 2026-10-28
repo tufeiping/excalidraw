@@ -5,6 +5,7 @@ import { KEYS } from "@excalidraw/common";
 import { useUIAppState } from "../context/ui-appState";
 import { useI18n } from "../i18n";
 
+import { useEditorInterface } from "./App";
 import { Dialog } from "./Dialog";
 import { FilledButton } from "./FilledButton";
 import { Paragraph } from "./Paragraph";
@@ -84,6 +85,9 @@ export const MagicSettings = ({
 }) => {
   const { t } = useI18n();
   const appState = useUIAppState();
+  // on phones Dialog renders its own fullscreen close button in the corner;
+  // drawing a second one next to the title was a duplicate
+  const isFullscreen = useEditorInterface().formFactor === "phone";
   const [showKey, setShowKey] = useState(false);
 
   const onConfirm = () => onClose();
@@ -139,15 +143,17 @@ export const MagicSettings = ({
       title={
         <span className="MagicSettings__titleRow">
           <span>{t("aiSettings.title")}</span>
-          <button
-            type="button"
-            className="MagicSettings__close"
-            onClick={onClose}
-            title={t("buttons.close")}
-            aria-label={t("buttons.close")}
-          >
-            {CloseIcon}
-          </button>
+          {isFullscreen ? null : (
+            <button
+              type="button"
+              className="MagicSettings__close"
+              onClick={onClose}
+              title={t("buttons.close")}
+              aria-label={t("buttons.close")}
+            >
+              {CloseIcon}
+            </button>
+          )}
         </span>
       }
       className="MagicSettings"

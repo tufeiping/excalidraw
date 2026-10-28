@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import {
   Fragment,
   useCallback,
@@ -7,6 +8,8 @@ import {
   useState,
 } from "react";
 
+import { useEditorInterface } from "@excalidraw/excalidraw";
+import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 
@@ -490,6 +493,9 @@ export const AgentPanel = ({
 }) => {
   const { t, langCode } = useI18n();
   const appState = useUIAppState();
+  // phones get a full-screen sheet instead of the docked side panel, which would
+  // otherwise sit on top of the canvas it is meant to edit
+  const isPhone = useEditorInterface().formFactor === "phone";
   const {
     items,
     status,
@@ -523,7 +529,7 @@ export const AgentPanel = ({
 
   const rows = useMemo(() => buildRows(items), [items]);
 
-  const panelRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const resizingRef = useRef(false);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   // the prompt each rendered answer belongs to, carried across the row mapping
@@ -702,331 +708,346 @@ export const AgentPanel = ({
   }
 
   return (
-    <aside
-      className="agent-panel"
-      aria-label={t("agent.title")}
-      ref={panelRef}
-      data-resizing={resizing || undefined}
-      style={
-        { "--agent-panel-width": `${panelWidth}px` } as React.CSSProperties
-      }
-    >
+    <>
+      {/* swallows taps: the mobile sheet is modal, so only its own close button
+          (or Escape) dismisses it — a stray canvas tap must not hide it */}
+      {isPhone ? <div className="agent-panel__scrim" /> : null}
       <div
-        className="agent-panel__resizer"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t("agent.resizeHint")}
-        title={t("agent.resizeHint")}
-        tabIndex={0}
-        onPointerDown={onResizeStart}
-        onPointerMove={onResizeMove}
-        onPointerUp={endResize}
-        onPointerCancel={endResize}
-        onDoubleClick={() => persistWidth(PANEL_DEFAULT_WIDTH)}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowLeft") {
-            event.preventDefault();
-            persistWidth(panelWidth + 24);
-          } else if (event.key === "ArrowRight") {
-            event.preventDefault();
-            persistWidth(panelWidth - 24);
-          } else if (event.key === "Home" || event.key === "Enter") {
-            event.preventDefault();
-            persistWidth(PANEL_DEFAULT_WIDTH);
-          }
-        }}
-      />
-      <div className="agent-panel__header">
-        <span className="agent-panel__title">{t("agent.title")}</span>
-        <span className="agent-panel__status">
-          {running
-            ? status === "running-tool"
-              ? t("agent.statusRunningTool")
-              : t("agent.statusThinking")
-            : t("agent.statusElements", { count: elementCount })}
-        </span>
-        <button
-          type="button"
-          className="agent-panel__button"
-          onClick={() => {
-            if (!showHistory) {
-              refreshChats();
-            }
-            setShowHistory((previous) => !previous);
-          }}
-          title={t("agent.history")}
-        >
-          {t("agent.history")}
-        </button>
-        <button
-          type="button"
-          className="agent-panel__button"
-          onClick={() => {
-            stickToBottomRef.current = true;
-            setShowHistory(false);
-            newChat();
-          }}
-          disabled={running}
-          title={t("agent.newChat")}
-        >
-          {t("agent.newChat")}
-        </button>
-        <button
-          type="button"
-          className="agent-panel__button"
-          onClick={() => onOpenChange(false)}
-          title={t("agent.hide")}
-        >
-          {t("agent.hide")}
-        </button>
-      </div>
-
-      {!configured && !showHistory ? (
-        <div className="agent-panel__setup">
-          <div className="agent-panel__setup-head">
-            <span className="agent-panel__setup-dot" />
-            <span className="agent-panel__setup-title">
-              {t("agent.setupTitle")}
-            </span>
-          </div>
-          <div className="agent-panel__setup-body">{t("agent.setupBody")}</div>
-          <div className="agent-panel__setup-foot">
-            <span className="agent-panel__setup-meta">
-              {t("agent.setupModel", { model: describeAiModel() })}
-            </span>
-            <button
-              type="button"
-              className="agent-panel__button agent-panel__button--primary"
-              onClick={openSettings}
-            >
-              {t("agent.openSettings")}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {showHistory ? (
-        <HistoryList
-          chats={chats}
-          activeChatId={activeChatId}
-          lang={langCode}
-          t={t}
-          onOpen={(id) => {
-            stickToBottomRef.current = true;
-            setShowHistory(false);
-            openChat(id);
-          }}
-          onDelete={removeChat}
-          onBack={() => setShowHistory(false)}
-          disabled={running}
-        />
-      ) : (
-        <div
-          className="agent-panel__messages"
-          ref={messagesRef}
-          onScroll={onScroll}
-        >
-          {rows.length === 0 ? (
-            <div className="agent-panel__empty">
-              <div>
-                {t("agent.emptyIntro", { count: elementCount })}
-                {selectedCount > 0
-                  ? t("agent.emptySelected", { count: selectedCount })
-                  : ""}
-              </div>
-              <ul>
-                {suggestions.map((suggestion) => (
-                  <li key={suggestion}>
-                    <button
-                      type="button"
-                      className="agent-panel__button"
-                      onClick={() => {
-                        stickToBottomRef.current = true;
-                        void send(suggestion);
-                      }}
-                      disabled={running}
-                    >
-                      {suggestion}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            rows.map((row) => {
-              if (row.type === "steps") {
-                return <StepsRow key={row.id} steps={row.steps} t={t} />;
-              }
-              // every answer belongs to the prompt above it: that is the turn
-              // "重新生成" / "重试" has to re-run
-              if (row.item.kind === "user") {
-                lastPromptRef.current = row.item.id;
-              }
-              const promptId = lastPromptRef.current;
-              const label =
-                row.item.kind === "user"
-                  ? t("agent.resend")
-                  : row.item.kind === "assistant"
-                  ? t("agent.regenerate")
-                  : t("agent.retry");
-              return (
-                <MessageRow
-                  key={row.item.id}
-                  item={row.item}
-                  lang={langCode}
-                  t={t}
-                  resendId={promptId}
-                  onResend={(itemId) => {
-                    stickToBottomRef.current = true;
-                    void resend(itemId);
-                  }}
-                  resendLabel={label}
-                  onDelete={setPendingDeleteItem}
-                  disabled={running}
-                />
-              );
-            })
-          )}
-          {showIndicator ? (
-            <div className="agent-msg agent-msg--notice">
-              <div className="agent-msg__body">
-                {status === "running-tool"
-                  ? t("agent.statusRunningTool")
-                  : t("agent.statusThinking")}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {error ? (
-        <div className="agent-panel__hint">
-          <span style={{ color: "var(--color-danger)" }}>{error}</span>
-          {error === t("agent.errorMissingKey") ||
-          /密钥|API key/i.test(error) ? (
-            <button
-              type="button"
-              className="agent-panel__button"
-              onClick={() => {
-                dismissError();
-                openSettings();
-              }}
-            >
-              {t("agent.openSettings")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="agent-panel__button"
-              onClick={dismissError}
-            >
-              {t("agent.dismiss")}
-            </button>
-          )}
-        </div>
-      ) : null}
-
-      {pendingDeleteItem ? (
-        <div
-          className="agent-confirm__backdrop"
-          role="presentation"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              setPendingDeleteItem(null);
-            }
-          }}
-        >
+        // deliberately not an <aside>: upstream's mobile stylesheet hides every
+        // aside (`.excalidraw--mobile.excalidraw aside { display: none }`)
+        role="complementary"
+        className={clsx("agent-panel", { "agent-panel--mobile": isPhone })}
+        aria-label={t("agent.title")}
+        ref={panelRef}
+        data-resizing={resizing || undefined}
+        style={
+          { "--agent-panel-width": `${panelWidth}px` } as React.CSSProperties
+        }
+      >
+        {isPhone ? null : (
           <div
-            className="agent-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="agent-confirm-title"
-          >
-            <div className="agent-confirm__title" id="agent-confirm-title">
-              {t("agent.deleteTitle")}
-            </div>
-            <div className="agent-confirm__body">
-              {pendingDeleteItem.kind === "user"
-                ? t("agent.deletePromptBody")
-                : t("agent.deleteAnswerBody")}
-            </div>
-            {pendingDeleteItem.text ? (
-              <div className="agent-confirm__quote">
-                {pendingDeleteItem.text.slice(0, 120)}
-                {pendingDeleteItem.text.length > 120 ? "…" : ""}
-              </div>
-            ) : null}
-            <div className="agent-confirm__actions">
-              <button
-                type="button"
-                className="agent-panel__button"
-                autoFocus
-                onClick={() => setPendingDeleteItem(null)}
-              >
-                {t("agent.cancel")}
-              </button>
-              <button
-                type="button"
-                className="agent-panel__button agent-panel__button--danger"
-                onClick={() => {
-                  removeItem(pendingDeleteItem.id);
-                  setPendingDeleteItem(null);
-                }}
-              >
-                {t("agent.deleteConfirm")}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="agent-panel__composer">
-        <div className="agent-panel__hint">
-          <span>
-            {selectedCount > 0
-              ? t("agent.hintSelection", { count: selectedCount })
-              : t("agent.hintEnter")}
-          </span>
-        </div>
-        <div className="agent-panel__input-row">
-          <textarea
-            className="agent-panel__input"
-            ref={inputRef}
-            value={draft}
-            rows={1}
-            placeholder={t("agent.placeholder")}
-            onChange={(event) => setDraft(event.target.value)}
+            className="agent-panel__resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("agent.resizeHint")}
+            title={t("agent.resizeHint")}
+            tabIndex={0}
+            onPointerDown={onResizeStart}
+            onPointerMove={onResizeMove}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
+            onDoubleClick={() => persistWidth(PANEL_DEFAULT_WIDTH)}
             onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !(event.nativeEvent as KeyboardEvent).isComposing
-              ) {
+              if (event.key === "ArrowLeft") {
                 event.preventDefault();
-                submit();
+                persistWidth(panelWidth + 24);
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
+                persistWidth(panelWidth - 24);
+              } else if (event.key === "Home" || event.key === "Enter") {
+                event.preventDefault();
+                persistWidth(PANEL_DEFAULT_WIDTH);
               }
             }}
           />
-          {running ? (
-            <button
-              type="button"
-              className="agent-panel__send agent-panel__stop"
-              onClick={stop}
+        )}
+        <div className="agent-panel__header">
+          <span className="agent-panel__title">{t("agent.title")}</span>
+          <span className="agent-panel__status">
+            {running
+              ? status === "running-tool"
+                ? t("agent.statusRunningTool")
+                : t("agent.statusThinking")
+              : t("agent.statusElements", { count: elementCount })}
+          </span>
+          <button
+            type="button"
+            className="agent-panel__button"
+            onClick={() => {
+              if (!showHistory) {
+                refreshChats();
+              }
+              setShowHistory((previous) => !previous);
+            }}
+            title={t("agent.history")}
+          >
+            {t("agent.history")}
+          </button>
+          <button
+            type="button"
+            className="agent-panel__button"
+            onClick={() => {
+              stickToBottomRef.current = true;
+              setShowHistory(false);
+              newChat();
+            }}
+            disabled={running}
+            title={t("agent.newChat")}
+          >
+            {t("agent.newChat")}
+          </button>
+          <button
+            type="button"
+            className={clsx("agent-panel__button", {
+              "agent-panel__close": isPhone,
+            })}
+            onClick={() => onOpenChange(false)}
+            title={isPhone ? t("buttons.close") : t("agent.hide")}
+            aria-label={isPhone ? t("buttons.close") : t("agent.hide")}
+          >
+            {isPhone ? CloseIcon : t("agent.hide")}
+          </button>
+        </div>
+
+        {!configured && !showHistory ? (
+          <div className="agent-panel__setup">
+            <div className="agent-panel__setup-head">
+              <span className="agent-panel__setup-dot" />
+              <span className="agent-panel__setup-title">
+                {t("agent.setupTitle")}
+              </span>
+            </div>
+            <div className="agent-panel__setup-body">
+              {t("agent.setupBody")}
+            </div>
+            <div className="agent-panel__setup-foot">
+              <span className="agent-panel__setup-meta">
+                {t("agent.setupModel", { model: describeAiModel() })}
+              </span>
+              <button
+                type="button"
+                className="agent-panel__button agent-panel__button--primary"
+                onClick={openSettings}
+              >
+                {t("agent.openSettings")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {showHistory ? (
+          <HistoryList
+            chats={chats}
+            activeChatId={activeChatId}
+            lang={langCode}
+            t={t}
+            onOpen={(id) => {
+              stickToBottomRef.current = true;
+              setShowHistory(false);
+              openChat(id);
+            }}
+            onDelete={removeChat}
+            onBack={() => setShowHistory(false)}
+            disabled={running}
+          />
+        ) : (
+          <div
+            className="agent-panel__messages"
+            ref={messagesRef}
+            onScroll={onScroll}
+          >
+            {rows.length === 0 ? (
+              <div className="agent-panel__empty">
+                <div>
+                  {t("agent.emptyIntro", { count: elementCount })}
+                  {selectedCount > 0
+                    ? t("agent.emptySelected", { count: selectedCount })
+                    : ""}
+                </div>
+                <ul>
+                  {suggestions.map((suggestion) => (
+                    <li key={suggestion}>
+                      <button
+                        type="button"
+                        className="agent-panel__button"
+                        onClick={() => {
+                          stickToBottomRef.current = true;
+                          void send(suggestion);
+                        }}
+                        disabled={running}
+                      >
+                        {suggestion}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              rows.map((row) => {
+                if (row.type === "steps") {
+                  return <StepsRow key={row.id} steps={row.steps} t={t} />;
+                }
+                // every answer belongs to the prompt above it: that is the turn
+                // "重新生成" / "重试" has to re-run
+                if (row.item.kind === "user") {
+                  lastPromptRef.current = row.item.id;
+                }
+                const promptId = lastPromptRef.current;
+                const label =
+                  row.item.kind === "user"
+                    ? t("agent.resend")
+                    : row.item.kind === "assistant"
+                    ? t("agent.regenerate")
+                    : t("agent.retry");
+                return (
+                  <MessageRow
+                    key={row.item.id}
+                    item={row.item}
+                    lang={langCode}
+                    t={t}
+                    resendId={promptId}
+                    onResend={(itemId) => {
+                      stickToBottomRef.current = true;
+                      void resend(itemId);
+                    }}
+                    resendLabel={label}
+                    onDelete={setPendingDeleteItem}
+                    disabled={running}
+                  />
+                );
+              })
+            )}
+            {showIndicator ? (
+              <div className="agent-msg agent-msg--notice">
+                <div className="agent-msg__body">
+                  {status === "running-tool"
+                    ? t("agent.statusRunningTool")
+                    : t("agent.statusThinking")}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {error ? (
+          <div className="agent-panel__hint">
+            <span style={{ color: "var(--color-danger)" }}>{error}</span>
+            {error === t("agent.errorMissingKey") ||
+            /密钥|API key/i.test(error) ? (
+              <button
+                type="button"
+                className="agent-panel__button"
+                onClick={() => {
+                  dismissError();
+                  openSettings();
+                }}
+              >
+                {t("agent.openSettings")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="agent-panel__button"
+                onClick={dismissError}
+              >
+                {t("agent.dismiss")}
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {pendingDeleteItem ? (
+          <div
+            className="agent-confirm__backdrop"
+            role="presentation"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setPendingDeleteItem(null);
+              }
+            }}
+          >
+            <div
+              className="agent-confirm"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="agent-confirm-title"
             >
-              {t("agent.stop")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="agent-panel__send"
-              onClick={submit}
-              disabled={!draft.trim()}
-            >
-              {t("agent.send")}
-            </button>
-          )}
+              <div className="agent-confirm__title" id="agent-confirm-title">
+                {t("agent.deleteTitle")}
+              </div>
+              <div className="agent-confirm__body">
+                {pendingDeleteItem.kind === "user"
+                  ? t("agent.deletePromptBody")
+                  : t("agent.deleteAnswerBody")}
+              </div>
+              {pendingDeleteItem.text ? (
+                <div className="agent-confirm__quote">
+                  {pendingDeleteItem.text.slice(0, 120)}
+                  {pendingDeleteItem.text.length > 120 ? "…" : ""}
+                </div>
+              ) : null}
+              <div className="agent-confirm__actions">
+                <button
+                  type="button"
+                  className="agent-panel__button"
+                  autoFocus
+                  onClick={() => setPendingDeleteItem(null)}
+                >
+                  {t("agent.cancel")}
+                </button>
+                <button
+                  type="button"
+                  className="agent-panel__button agent-panel__button--danger"
+                  onClick={() => {
+                    removeItem(pendingDeleteItem.id);
+                    setPendingDeleteItem(null);
+                  }}
+                >
+                  {t("agent.deleteConfirm")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="agent-panel__composer">
+          <div className="agent-panel__hint">
+            <span>
+              {selectedCount > 0
+                ? t("agent.hintSelection", { count: selectedCount })
+                : t("agent.hintEnter")}
+            </span>
+          </div>
+          <div className="agent-panel__input-row">
+            <textarea
+              className="agent-panel__input"
+              ref={inputRef}
+              value={draft}
+              rows={1}
+              placeholder={t("agent.placeholder")}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !(event.nativeEvent as KeyboardEvent).isComposing
+                ) {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+            />
+            {running ? (
+              <button
+                type="button"
+                className="agent-panel__send agent-panel__stop"
+                onClick={stop}
+              >
+                {t("agent.stop")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="agent-panel__send"
+                onClick={submit}
+                disabled={!draft.trim()}
+              >
+                {t("agent.send")}
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </aside>
+    </>
   );
 };

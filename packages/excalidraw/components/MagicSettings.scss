@@ -67,7 +67,13 @@
   // three-way switch: deployment relay / own endpoint / off
   .MagicSettings__modes {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
+
+    @media (max-width: 480px) {
+      flex-direction: column;
+    }
+
     padding: 0.25rem;
     margin: 0.75rem 0 1rem;
     border-radius: var(--border-radius-lg);
@@ -84,6 +90,14 @@
     color: var(--text-primary-color);
     font-size: 0.8125rem;
     cursor: pointer;
+    // segments broke mid-word ("NE 账号（本 / 站提供)") in the phone layout
+    white-space: nowrap;
+
+    @media (max-width: 480px) {
+      flex: 0 0 auto;
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+    }
 
     &:hover {
       background: var(--button-hover-bg);

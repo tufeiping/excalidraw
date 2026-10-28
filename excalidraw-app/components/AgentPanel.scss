@@ -85,6 +85,54 @@ body.agent-panel-resizing {
       width: auto;
     }
 
+    // Phones: full-screen sheet. Upstream hides every <aside> in mobile mode,
+    // so the panel is a div now — this block only changes the presentation.
+    &.agent-panel--mobile {
+      inset: 0;
+      width: auto;
+      max-width: none;
+      height: 100dvh;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+
+      .agent-panel__header {
+        padding-top: calc(0.5rem + env(safe-area-inset-top));
+      }
+
+      // keep the send button above the home indicator
+      .agent-panel__composer {
+        padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
+      }
+    }
+
+    // tap sink: the sheet is modal, taps outside it must not reach the canvas
+    // and must not dismiss it either
+    &__scrim {
+      position: fixed;
+      inset: 0;
+      z-index: calc(var(--agent-panel-z) - 1);
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    &__close {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      // a phone-sized tap target, not the 18x10 box the icon shrinks to
+      width: 2.25rem;
+      height: 2.25rem;
+      margin-left: auto;
+      padding: 0;
+      line-height: 0;
+
+      svg {
+        width: 1.1rem;
+        height: 1.1rem;
+      }
+    }
+
     &__resizer {
       position: absolute;
       top: 0;
